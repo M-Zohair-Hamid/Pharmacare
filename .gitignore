@@ -1,0 +1,14 @@
+﻿/vendor/
+/node_modules/
+.env
+.env.backup
+/storage/*.key
+/storage/framework/
+/storage/logs/
+/.vscode/
+/.idea/
+.DS_Store
+composer.phar
+composer.lock
+*.sqlite
+*.log
