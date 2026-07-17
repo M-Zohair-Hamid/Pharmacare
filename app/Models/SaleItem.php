@@ -13,6 +13,7 @@ class SaleItem extends Model
         'sale_id',
         'medicine_id',
         'quantity',
+        'unit_type',
         'unit_price',
         'subtotal',
     ];

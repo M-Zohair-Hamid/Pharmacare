@@ -14,6 +14,7 @@ return new class extends Migration
             $table->decimal('total_amount', 12, 2)->default(0);
             $table->text('notes')->nullable();
             $table->timestamp('created_at')->useCurrent();
+            $table->softDeletes();
         });
 
         Schema::create('purchase_items', function (Blueprint $table) {

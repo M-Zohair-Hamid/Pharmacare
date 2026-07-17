@@ -45,14 +45,23 @@
 <body>
     <div class="receipt">
         <div class="header">
-            <div class="brand">PHARMACARE</div>
+            <div class="brand">{{ strtoupper($settings->pharmacy_name) }}</div>
             <h1>POS Bill</h1>
-            <div class="meta">Sale #{{ $sale->id }}</div>
+            @if ($settings->owner_name)
+                <div class="meta">Owner: {{ $settings->owner_name }}</div>
+            @endif
+            @if ($settings->phone)
+                <div class="meta">Phone: {{ $settings->phone }}</div>
+            @endif
+            @if ($settings->address)
+                <div class="meta">{{ $settings->address }}</div>
+            @endif
+            <div class="meta">Sale #{{ $sale->id }} · Bill Code: {{ $sale->bill_code }}</div>
             <div class="meta">{{ $sale->created_at->format('M j, Y g:i A') }}</div>
         </div>
 
         <div class="meta">
-            Customer: {{ $sale->customer->name ?? 'Walk-in' }}
+            Customer: {{ $sale->customer_name ?? $sale->customer->name ?? 'Walk-in' }}
             <br />Payment: {{ ucfirst($sale->payment_method) }}
             @if ($sale->notes)
                 <br />Notes: {{ $sale->notes }}
@@ -63,6 +72,7 @@
             <thead>
                 <tr>
                     <th>Item</th>
+                    <th class="right">Unit</th>
                     <th class="right">Qty</th>
                     <th class="right">Price</th>
                     <th class="right">Total</th>
@@ -75,6 +85,7 @@
                             <div class="item-name">{{ $item->medicine->name ?? 'Unknown item' }}</div>
                             <div class="item-sku">{{ $item->medicine->sku ?? '' }}</div>
                         </td>
+                        <td class="right">{{ $item->unit_type }}</td>
                         <td class="right">{{ $item->quantity }}</td>
                         <td class="right">{{ number_format($item->unit_price, 2) }}</td>
                         <td class="right">{{ number_format($item->subtotal, 2) }}</td>
@@ -91,7 +102,7 @@
         </div>
 
         <div class="footer" style="margin-top: 18px; text-align: center;">
-            Thank you for shopping with PharmaCare.
+            Thank you for shopping with {{ $settings->pharmacy_name }}.
         </div>
     </div>
 

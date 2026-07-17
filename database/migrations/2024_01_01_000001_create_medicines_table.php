@@ -13,6 +13,7 @@ return new class extends Migration
             $table->string('name', 255);
             $table->string('generic_name', 255)->nullable();
             $table->string('category', 100)->default('General');
+            $table->string('medicine_type', 50)->default('Tablet');
             $table->string('manufacturer', 255)->nullable();
             $table->string('sku', 100)->unique();
             $table->decimal('unit_price', 12, 2)->default(0);
@@ -22,6 +23,7 @@ return new class extends Migration
             $table->timestamp('expiry_date')->nullable();
             $table->text('description')->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

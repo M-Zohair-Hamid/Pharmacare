@@ -17,6 +17,7 @@ return new class extends Migration
             $table->text('address')->nullable();
             $table->text('notes')->nullable();
             $table->timestamp('created_at')->useCurrent();
+            $table->softDeletes();
         });
     }
 

@@ -5,15 +5,19 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Medicine extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
+
+    public const TYPES = ['Tablet', 'Capsule', 'Syrup', 'Cream', 'Gel', 'Drops', 'Injection', 'Ointment', 'Powder', 'Other'];
 
     protected $fillable = [
         'name',
         'generic_name',
         'category',
+        'medicine_type',
         'manufacturer',
         'sku',
         'unit_price',
@@ -54,6 +58,11 @@ class Medicine extends Model
         return 'ok';
     }
 
+    public function getIsExpiredAttribute(): bool
+    {
+        return $this->expiry_date !== null && $this->expiry_date->isPast();
+    }
+
     public function scopeLowStock($query)
     {
         return $query->whereColumn('quantity', '<=', 'reorder_level');
@@ -62,6 +71,13 @@ class Medicine extends Model
     public function scopeExpiringSoon($query, int $days = 60)
     {
         return $query->whereNotNull('expiry_date')
-            ->where('expiry_date', '<=', now()->addDays($days));
+            ->where('expiry_date', '<=', now()->addDays($days))
+            ->where('expiry_date', '>=', now());
+    }
+
+    public function scopeExpired($query)
+    {
+        return $query->whereNotNull('expiry_date')
+            ->where('expiry_date', '<', now());
     }
 }

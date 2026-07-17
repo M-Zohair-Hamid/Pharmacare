@@ -26,6 +26,9 @@ class Index extends Component
     public string $address = '';
     public string $notes = '';
 
+    public array $selected = [];
+    public bool $selectAll = false;
+
     protected function rules(): array
     {
         return [
@@ -41,6 +44,15 @@ class Index extends Component
     public function updatingQ(): void
     {
         $this->resetPage();
+    }
+
+    public function updatedSelectAll($value): void
+    {
+        if ($value) {
+            $this->selected = $this->render()->getData()['suppliers']->pluck('id')->map(fn ($id) => (string) $id)->toArray();
+        } else {
+            $this->selected = [];
+        }
     }
 
     public function openCreate(): void
@@ -90,6 +102,25 @@ class Index extends Component
         Supplier::findOrFail($id)->delete();
     }
 
+    public function forceDelete(int $id): void
+    {
+        Supplier::withTrashed()->findOrFail($id)->forceDelete();
+    }
+
+    public function bulkDelete(): void
+    {
+        Supplier::whereIn('id', $this->selected)->delete();
+        $this->selected = [];
+        $this->selectAll = false;
+    }
+
+    public function bulkForceDelete(): void
+    {
+        Supplier::withTrashed()->whereIn('id', $this->selected)->forceDelete();
+        $this->selected = [];
+        $this->selectAll = false;
+    }
+
     public function resetForm(): void
     {
         $this->reset(['editingId', 'name', 'contactPerson', 'email', 'phone', 'address', 'notes']);
@@ -117,6 +148,7 @@ class Index extends Component
 
         return view('livewire.suppliers.index', [
             'suppliers' => $query->orderBy('name')->paginate(15),
+            'trashed' => Supplier::onlyTrashed()->orderByDesc('deleted_at')->get(),
         ]);
     }
 }

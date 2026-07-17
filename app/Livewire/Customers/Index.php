@@ -25,6 +25,9 @@ class Index extends Component
     public string $address = '';
     public string $notes = '';
 
+    public array $selected = [];
+    public bool $selectAll = false;
+
     protected function rules(): array
     {
         return [
@@ -39,6 +42,15 @@ class Index extends Component
     public function updatingQ(): void
     {
         $this->resetPage();
+    }
+
+    public function updatedSelectAll($value): void
+    {
+        if ($value) {
+            $this->selected = $this->render()->getData()['customers']->pluck('id')->map(fn ($id) => (string) $id)->toArray();
+        } else {
+            $this->selected = [];
+        }
     }
 
     public function openCreate(): void
@@ -86,6 +98,25 @@ class Index extends Component
         Customer::findOrFail($id)->delete();
     }
 
+    public function forceDelete(int $id): void
+    {
+        Customer::withTrashed()->findOrFail($id)->forceDelete();
+    }
+
+    public function bulkDelete(): void
+    {
+        Customer::whereIn('id', $this->selected)->delete();
+        $this->selected = [];
+        $this->selectAll = false;
+    }
+
+    public function bulkForceDelete(): void
+    {
+        Customer::withTrashed()->whereIn('id', $this->selected)->forceDelete();
+        $this->selected = [];
+        $this->selectAll = false;
+    }
+
     public function resetForm(): void
     {
         $this->reset(['editingId', 'name', 'email', 'phone', 'address', 'notes']);
@@ -113,6 +144,7 @@ class Index extends Component
 
         return view('livewire.customers.index', [
             'customers' => $query->orderBy('name')->paginate(15),
+            'trashed' => Customer::onlyTrashed()->orderByDesc('deleted_at')->get(),
         ]);
     }
 }

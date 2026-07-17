@@ -16,14 +16,17 @@ class Pos extends Component
     use WithPagination;
 
     public string $search = '';
-    public ?int $customerId = null;
+    public string $customerName = '';
     public string $paymentMethod = 'cash';
     public string $notes = '';
 
-    /** @var array<int, array{medicine_id:int, name:string, sku:string, quantity:int, unit_price:float, available:int}> */
+    /** @var array<int, array{medicine_id:int, name:string, sku:string, quantity:int, unit_type:string, unit_price:float, available:int}> */
     public array $cart = [];
 
     public ?int $lastSaleId = null;
+    public ?string $lastBillCode = null;
+
+    public array $unitTypes = ['Box', 'Tablet', 'Strip', 'Bottle', 'Piece'];
 
     public function addToCart(int $medicineId): void
     {
@@ -46,6 +49,7 @@ class Pos extends Component
                 'name' => $medicine->name,
                 'sku' => $medicine->sku,
                 'quantity' => 1,
+                'unit_type' => 'Tablet',
                 'unit_price' => (float) $medicine->unit_price,
                 'available' => $medicine->quantity,
             ];
@@ -74,6 +78,15 @@ class Pos extends Component
         $this->resetErrorBag('cart');
     }
 
+    public function updateUnitType(int $medicineId, string $unitType): void
+    {
+        if (!isset($this->cart[$medicineId])) {
+            return;
+        }
+
+        $this->cart[$medicineId]['unit_type'] = $unitType;
+    }
+
     public function removeFromCart(int $medicineId): void
     {
         unset($this->cart[$medicineId]);
@@ -87,6 +100,8 @@ class Pos extends Component
     /**
      * Mirrors offline-sales.ts createOfflineSale(): validates stock,
      * decrements medicine quantity, and writes sale + sale_items atomically.
+     * Customer is identified by free-text name (not a dropdown); matched or
+     * created against the customers table so history stays linkable.
      */
     public function checkout()
     {
@@ -114,6 +129,7 @@ class Pos extends Component
                     $lineItems[] = [
                         'medicine_id' => $medicine->id,
                         'quantity' => $item['quantity'],
+                        'unit_type' => $item['unit_type'],
                         'unit_price' => $item['unit_price'],
                         'subtotal' => $subtotal,
                     ];
@@ -121,8 +137,17 @@ class Pos extends Component
                     $medicine->decrement('quantity', $item['quantity']);
                 }
 
+                $customerId = null;
+                $customerName = trim($this->customerName) ?: null;
+
+                if ($customerName) {
+                    $customer = Customer::firstOrCreate(['name' => $customerName]);
+                    $customerId = $customer->id;
+                }
+
                 $sale = Sale::create([
-                    'customer_id' => $this->customerId,
+                    'customer_id' => $customerId,
+                    'customer_name' => $customerName,
                     'total_amount' => $total,
                     'payment_method' => $this->paymentMethod,
                     'notes' => $this->notes ?: null,
@@ -134,7 +159,9 @@ class Pos extends Component
             });
 
             $this->lastSaleId = $sale->id;
+            $this->lastBillCode = $sale->bill_code;
             $this->cart = [];
+            $this->customerName = '';
             $this->notes = '';
             $this->resetErrorBag('cart');
 
@@ -160,7 +187,6 @@ class Pos extends Component
 
         return view('livewire.sales.pos', [
             'medicines' => $medicines,
-            'customers' => Customer::orderBy('name')->get(),
         ]);
     }
 }

@@ -22,6 +22,9 @@ class Index extends Component
     #[Url]
     public string $stock = '';
 
+    #[Url]
+    public string $type = '';
+
     public bool $showModal = false;
     public ?int $editingId = null;
 
@@ -29,6 +32,7 @@ class Index extends Component
     public string $name = '';
     public string $genericName = '';
     public string $category_field = 'General';
+    public string $medicineType = 'Tablet';
     public string $manufacturer = '';
     public string $sku = '';
     public string $unitPrice = '0';
@@ -38,20 +42,34 @@ class Index extends Component
     public ?string $expiryDate = null;
     public string $description = '';
 
+    // Bulk selection
+    public array $selected = [];
+    public bool $selectAll = false;
+
+    public array $medicineTypes = Medicine::TYPES;
+
     protected function rules(): array
     {
         return [
             'name' => 'required|string|max:255',
             'genericName' => 'nullable|string|max:255',
             'category_field' => 'required|string|max:100',
+            'medicineType' => 'required|string|in:' . implode(',', Medicine::TYPES),
             'manufacturer' => 'nullable|string|max:255',
             'sku' => 'required|string|max:100|unique:medicines,sku,' . ($this->editingId ?? 'NULL'),
             'unitPrice' => 'required|numeric|min:0',
             'costPrice' => 'required|numeric|min:0',
             'quantity' => 'required|integer|min:0',
             'reorderLevel' => 'required|integer|min:0',
-            'expiryDate' => 'nullable|date',
+            'expiryDate' => 'nullable|date|after_or_equal:today',
             'description' => 'nullable|string',
+        ];
+    }
+
+    protected function messages(): array
+    {
+        return [
+            'expiryDate.after_or_equal' => 'This medicine is already expired. Expired medicines cannot be added.',
         ];
     }
 
@@ -70,6 +88,20 @@ class Index extends Component
         $this->resetPage();
     }
 
+    public function updatingType(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedSelectAll($value): void
+    {
+        if ($value) {
+            $this->selected = $this->render()->getData()['medicines']->pluck('id')->map(fn ($id) => (string) $id)->toArray();
+        } else {
+            $this->selected = [];
+        }
+    }
+
     public function openCreate(): void
     {
         $this->resetForm();
@@ -83,6 +115,7 @@ class Index extends Component
         $this->name = $medicine->name;
         $this->genericName = $medicine->generic_name ?? '';
         $this->category_field = $medicine->category;
+        $this->medicineType = $medicine->medicine_type ?? 'Tablet';
         $this->manufacturer = $medicine->manufacturer ?? '';
         $this->sku = $medicine->sku;
         $this->unitPrice = (string) $medicine->unit_price;
@@ -102,6 +135,7 @@ class Index extends Component
             'name' => $validated['name'],
             'generic_name' => $validated['genericName'] ?: null,
             'category' => $validated['category_field'],
+            'medicine_type' => $validated['medicineType'],
             'manufacturer' => $validated['manufacturer'] ?: null,
             'sku' => $validated['sku'],
             'unit_price' => $validated['unitPrice'],
@@ -127,6 +161,25 @@ class Index extends Component
         Medicine::findOrFail($id)->delete();
     }
 
+    public function forceDelete(int $id): void
+    {
+        Medicine::withTrashed()->findOrFail($id)->forceDelete();
+    }
+
+    public function bulkDelete(): void
+    {
+        Medicine::whereIn('id', $this->selected)->delete();
+        $this->selected = [];
+        $this->selectAll = false;
+    }
+
+    public function bulkForceDelete(): void
+    {
+        Medicine::withTrashed()->whereIn('id', $this->selected)->forceDelete();
+        $this->selected = [];
+        $this->selectAll = false;
+    }
+
     public function resetForm(): void
     {
         $this->reset([
@@ -135,6 +188,7 @@ class Index extends Component
             'expiryDate', 'description',
         ]);
         $this->category_field = 'General';
+        $this->medicineType = 'Tablet';
         $this->unitPrice = '0';
         $this->costPrice = '0';
         $this->reorderLevel = 10;
@@ -165,6 +219,10 @@ class Index extends Component
             $query->where('category', $this->category);
         }
 
+        if ($this->type !== '') {
+            $query->where('medicine_type', $this->type);
+        }
+
         if ($this->stock === 'low') {
             $query->whereColumn('quantity', '<=', 'reorder_level')->where('quantity', '>', 0);
         } elseif ($this->stock === 'out') {
@@ -175,10 +233,12 @@ class Index extends Component
 
         $medicines = $query->orderBy('name')->paginate(15);
         $categories = Medicine::query()->distinct()->orderBy('category')->pluck('category');
+        $trashed = Medicine::onlyTrashed()->orderByDesc('deleted_at')->get();
 
         return view('livewire.medicines.index', [
             'medicines' => $medicines,
             'categories' => $categories,
+            'trashed' => $trashed,
         ]);
     }
 }

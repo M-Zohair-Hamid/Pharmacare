@@ -87,6 +87,7 @@ class PharmacareSeeder extends Seeder
 
         $sale1 = Sale::create([
             'customer_id' => $customers[1]->id,
+            'customer_name' => $customers[1]->name,
             'total_amount' => 29.25,
             'payment_method' => 'card',
             'notes' => 'Prescription refill',
@@ -100,6 +101,7 @@ class PharmacareSeeder extends Seeder
 
         $sale2 = Sale::create([
             'customer_id' => $customers[2]->id,
+            'customer_name' => $customers[2]->name,
             'total_amount' => 31.40,
             'payment_method' => 'cash',
         ]);

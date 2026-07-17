@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Sale;
+use App\Models\Setting;
 
 class ReceiptController extends Controller
 {
@@ -10,6 +11,9 @@ class ReceiptController extends Controller
     {
         $sale->load(['customer', 'items.medicine']);
 
-        return view('receipts.sale', ['sale' => $sale]);
+        return view('receipts.sale', [
+            'sale' => $sale,
+            'settings' => Setting::current(),
+        ]);
     }
 }

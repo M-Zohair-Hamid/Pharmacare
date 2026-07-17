@@ -7,8 +7,8 @@
             </p>
         </div>
         <div class="flex flex-wrap gap-2">
-            <a href="{{ route('sales.pos') }}" class="inline-flex items-center rounded-xl bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-teal-700">New Sale</a>
-            <a href="{{ route('medicines.index') }}" class="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Manage Stock</a>
+            <a href="{{ route('sales.pos') }}" class="inline-flex cursor-pointer items-center rounded-xl bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:bg-teal-700 hover:shadow-md active:translate-y-0">New Sale</a>
+            <a href="{{ route('medicines.index') }}" class="inline-flex cursor-pointer items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-all duration-150 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-md active:translate-y-0">Manage Stock</a>
         </div>
     </div>
 
@@ -32,7 +32,7 @@
                     <h2 class="text-lg font-semibold text-slate-900">Low Stock</h2>
                     <p class="mt-1 text-sm text-slate-500">Medicines at or below reorder level</p>
                 </div>
-                <a href="{{ route('medicines.index') }}" class="text-sm font-medium text-teal-700 hover:text-teal-800">View all</a>
+                <a href="{{ route('medicines.index') }}" class="cursor-pointer text-sm font-medium text-teal-700 transition-colors duration-150 hover:text-teal-800">View all</a>
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full text-left text-sm">
@@ -113,9 +113,12 @@
 
     <div class="mt-6 grid gap-6 xl:grid-cols-5">
         <div class="rounded-2xl border border-slate-200/80 bg-white shadow-sm xl:col-span-3">
-            <div class="border-b border-slate-100 px-5 py-4">
-                <h2 class="text-lg font-semibold text-slate-900">Recent Sales</h2>
-                <p class="mt-1 text-sm text-slate-500">Latest transactions at the counter</p>
+            <div class="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">Recent Sales</h2>
+                    <p class="mt-1 text-sm text-slate-500">Latest transactions at the counter</p>
+                </div>
+                <a href="{{ route('sales.history') }}" class="cursor-pointer text-sm font-medium text-teal-700 transition-colors duration-150 hover:text-teal-800">Full history</a>
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full text-left text-sm">
@@ -131,10 +134,10 @@
                         @forelse ($recentSales as $sale)
                             <tr class="border-b border-slate-50 last:border-0">
                                 <td class="px-4 py-3 align-middle">
-                                    <div class="font-medium text-slate-900">#{{ $sale->id }}</div>
+                                    <div class="font-medium text-slate-900">{{ $sale->bill_code }}</div>
                                     <div class="text-xs text-slate-500">{{ $sale->created_at->format('M j, Y g:i A') }}</div>
                                 </td>
-                                <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->customer->name ?? 'Walk-in' }}</td>
+                                <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->customer_name ?? $sale->customer->name ?? 'Walk-in' }}</td>
                                 <td class="px-4 py-3 align-middle capitalize text-slate-700">{{ $sale->payment_method }}</td>
                                 <td class="px-4 py-3 align-middle font-medium text-slate-900">{{ number_format($sale->total_amount, 2) }}</td>
                             </tr>

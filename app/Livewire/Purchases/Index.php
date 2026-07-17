@@ -26,6 +26,9 @@ class Index extends Component
     public int $pickQuantity = 1;
     public string $pickUnitCost = '0';
 
+    public array $selected = [];
+    public bool $selectAll = false;
+
     public function addItem(): void
     {
         $this->validate([
@@ -115,6 +118,39 @@ class Index extends Component
         $this->showModal = false;
     }
 
+    public function updatedSelectAll($value): void
+    {
+        if ($value) {
+            $this->selected = $this->render()->getData()['purchases']->pluck('id')->map(fn ($id) => (string) $id)->toArray();
+        } else {
+            $this->selected = [];
+        }
+    }
+
+    public function delete(int $id): void
+    {
+        Purchase::findOrFail($id)->delete();
+    }
+
+    public function forceDelete(int $id): void
+    {
+        Purchase::withTrashed()->findOrFail($id)->forceDelete();
+    }
+
+    public function bulkDelete(): void
+    {
+        Purchase::whereIn('id', $this->selected)->delete();
+        $this->selected = [];
+        $this->selectAll = false;
+    }
+
+    public function bulkForceDelete(): void
+    {
+        Purchase::withTrashed()->whereIn('id', $this->selected)->forceDelete();
+        $this->selected = [];
+        $this->selectAll = false;
+    }
+
     public function render()
     {
         $purchases = Purchase::query()
@@ -127,6 +163,7 @@ class Index extends Component
             'purchases' => $purchases,
             'suppliers' => Supplier::orderBy('name')->get(),
             'medicines' => Medicine::orderBy('name')->get(),
+            'trashed' => Purchase::onlyTrashed()->with('supplier')->orderByDesc('deleted_at')->get(),
         ]);
     }
 }
