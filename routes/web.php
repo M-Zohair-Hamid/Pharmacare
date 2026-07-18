@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\ReceiptController;
-use App\Livewire\Customers\Index as CustomersIndex;
 use App\Livewire\Dashboard;
 use App\Livewire\Medicines\Index as MedicinesIndex;
 use App\Livewire\Purchases\Index as PurchasesIndex;
@@ -18,5 +17,4 @@ Route::get('/sales/history', SalesHistory::class)->name('sales.history');
 Route::get('/sales/{sale}/receipt', [ReceiptController::class, 'show'])->name('sales.receipt');
 Route::get('/purchases', PurchasesIndex::class)->name('purchases.index');
 Route::get('/suppliers', SuppliersIndex::class)->name('suppliers.index');
-Route::get('/customers', CustomersIndex::class)->name('customers.index');
 Route::get('/settings', Settings::class)->name('settings.index');

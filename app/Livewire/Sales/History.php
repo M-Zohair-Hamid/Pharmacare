@@ -49,12 +49,6 @@ class History extends Component
         }
     }
 
-    public function resetBillCode(int $saleId): void
-    {
-        $sale = Sale::withTrashed()->findOrFail($saleId);
-        $sale->update(['bill_code' => Sale::generateBillCode()]);
-    }
-
     public function delete(int $id): void
     {
         Sale::findOrFail($id)->delete();
@@ -62,33 +56,58 @@ class History extends Component
 
     public function forceDelete(int $id): void
     {
-        Sale::withTrashed()->findOrFail($id)->forceDelete();
+        try {
+            Sale::withTrashed()->findOrFail($id)->forceDelete();
+            session()->flash('success', 'Sale permanently deleted.');
+        } catch (\Throwable $e) {
+            session()->flash('error', 'Could not permanently delete this sale: ' . $e->getMessage());
+        }
     }
 
     public function bulkDelete(): void
     {
-        Sale::whereIn('id', $this->selected)->delete();
-        $this->selected = [];
-        $this->selectAll = false;
+        if (empty($this->selected)) {
+            session()->flash('error', 'No sales selected.');
+            return;
+        }
+
+        try {
+            Sale::whereIn('id', $this->selected)->delete();
+            session()->flash('success', count($this->selected) . ' sale(s) moved to trash.');
+            $this->selected = [];
+            $this->selectAll = false;
+        } catch (\Throwable $e) {
+            session()->flash('error', 'Could not delete selected sales: ' . $e->getMessage());
+        }
     }
 
     public function bulkForceDelete(): void
     {
-        Sale::withTrashed()->whereIn('id', $this->selected)->forceDelete();
-        $this->selected = [];
-        $this->selectAll = false;
+        if (empty($this->selected)) {
+            session()->flash('error', 'No sales selected.');
+            return;
+        }
+
+        try {
+            $count = count($this->selected);
+            Sale::withTrashed()->whereIn('id', $this->selected)->forceDelete();
+            session()->flash('success', $count . ' sale(s) permanently deleted.');
+            $this->selected = [];
+            $this->selectAll = false;
+        } catch (\Throwable $e) {
+            session()->flash('error', 'Could not permanently delete selected sales: ' . $e->getMessage());
+        }
     }
 
     public function render()
     {
-        $query = Sale::query()->with(['customer', 'items']);
+        $query = Sale::query()->with('items');
 
         if ($this->q !== '') {
-            $term = "%{$this->q}%";
+            $term = '%' . strtolower($this->q) . '%';
             $query->where(function ($qq) use ($term) {
-                $qq->where('bill_code', 'ilike', $term)
-                    ->orWhere('customer_name', 'ilike', $term)
-                    ->orWhereHas('customer', fn ($c) => $c->where('name', 'ilike', $term));
+                $qq->whereRaw('LOWER(bill_code) LIKE ?', [$term])
+                    ->orWhereRaw('LOWER(customer_name) LIKE ?', [$term]);
             });
         }
 
@@ -101,7 +120,7 @@ class History extends Component
         }
 
         $sales = $query->orderByDesc('created_at')->paginate(20);
-        $trashed = Sale::onlyTrashed()->with('customer')->orderByDesc('deleted_at')->get();
+        $trashed = Sale::onlyTrashed()->orderByDesc('deleted_at')->get();
 
         return view('livewire.sales.history', [
             'sales' => $sales,

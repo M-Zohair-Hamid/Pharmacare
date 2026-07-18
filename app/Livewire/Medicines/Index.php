@@ -34,11 +34,9 @@ class Index extends Component
     public string $category_field = 'General';
     public string $medicineType = 'Tablet';
     public string $manufacturer = '';
-    public string $sku = '';
     public string $unitPrice = '0';
     public string $costPrice = '0';
     public int $quantity = 0;
-    public int $reorderLevel = 10;
     public ?string $expiryDate = null;
     public string $description = '';
 
@@ -56,11 +54,9 @@ class Index extends Component
             'category_field' => 'required|string|max:100',
             'medicineType' => 'required|string|in:' . implode(',', Medicine::TYPES),
             'manufacturer' => 'nullable|string|max:255',
-            'sku' => 'required|string|max:100|unique:medicines,sku,' . ($this->editingId ?? 'NULL'),
             'unitPrice' => 'required|numeric|min:0',
             'costPrice' => 'required|numeric|min:0',
             'quantity' => 'required|integer|min:0',
-            'reorderLevel' => 'required|integer|min:0',
             'expiryDate' => 'nullable|date|after_or_equal:today',
             'description' => 'nullable|string',
         ];
@@ -69,7 +65,7 @@ class Index extends Component
     protected function messages(): array
     {
         return [
-            'expiryDate.after_or_equal' => 'This medicine is already expired. Expired medicines cannot be added.',
+            'expiryDate.after_or_equal' => 'This medicine is already expired. Expired medicines cannot be added or sold.',
         ];
     }
 
@@ -117,11 +113,9 @@ class Index extends Component
         $this->category_field = $medicine->category;
         $this->medicineType = $medicine->medicine_type ?? 'Tablet';
         $this->manufacturer = $medicine->manufacturer ?? '';
-        $this->sku = $medicine->sku;
         $this->unitPrice = (string) $medicine->unit_price;
         $this->costPrice = (string) $medicine->cost_price;
         $this->quantity = $medicine->quantity;
-        $this->reorderLevel = $medicine->reorder_level;
         $this->expiryDate = $medicine->expiry_date?->format('Y-m-d');
         $this->description = $medicine->description ?? '';
         $this->showModal = true;
@@ -131,17 +125,21 @@ class Index extends Component
     {
         $validated = $this->validate();
 
+        // Belt-and-suspenders: explicitly block expired dates even if validation is bypassed client-side.
+        if (!empty($validated['expiryDate']) && \Carbon\Carbon::parse($validated['expiryDate'])->endOfDay()->isPast()) {
+            $this->addError('expiryDate', 'This medicine is already expired. Expired medicines cannot be added.');
+            return;
+        }
+
         $payload = [
             'name' => $validated['name'],
             'generic_name' => $validated['genericName'] ?: null,
             'category' => $validated['category_field'],
             'medicine_type' => $validated['medicineType'],
             'manufacturer' => $validated['manufacturer'] ?: null,
-            'sku' => $validated['sku'],
             'unit_price' => $validated['unitPrice'],
             'cost_price' => $validated['costPrice'],
             'quantity' => $validated['quantity'],
-            'reorder_level' => $validated['reorderLevel'],
             'expiry_date' => $validated['expiryDate'] ?: null,
             'description' => $validated['description'] ?: null,
         ];
@@ -161,37 +159,67 @@ class Index extends Component
         Medicine::findOrFail($id)->delete();
     }
 
+    /**
+     * Force delete permanently removes the medicine and any sale/purchase line
+     * items pointing at it (medicine_id FKs are cascadeOnDelete at the DB level),
+     * so this can never crash with a foreign key violation.
+     */
     public function forceDelete(int $id): void
     {
-        Medicine::withTrashed()->findOrFail($id)->forceDelete();
+        try {
+            Medicine::withTrashed()->findOrFail($id)->forceDelete();
+            session()->flash('success', 'Medicine permanently deleted.');
+        } catch (\Throwable $e) {
+            session()->flash('error', 'Could not permanently delete this medicine: ' . $e->getMessage());
+        }
     }
 
     public function bulkDelete(): void
     {
-        Medicine::whereIn('id', $this->selected)->delete();
-        $this->selected = [];
-        $this->selectAll = false;
+        if (empty($this->selected)) {
+            session()->flash('error', 'No medicines selected.');
+            return;
+        }
+
+        try {
+            Medicine::whereIn('id', $this->selected)->delete();
+            session()->flash('success', count($this->selected) . ' medicine(s) moved to trash.');
+            $this->selected = [];
+            $this->selectAll = false;
+        } catch (\Throwable $e) {
+            session()->flash('error', 'Could not delete selected medicines: ' . $e->getMessage());
+        }
     }
 
     public function bulkForceDelete(): void
     {
-        Medicine::withTrashed()->whereIn('id', $this->selected)->forceDelete();
-        $this->selected = [];
-        $this->selectAll = false;
+        if (empty($this->selected)) {
+            session()->flash('error', 'No medicines selected.');
+            return;
+        }
+
+        try {
+            $count = count($this->selected);
+            Medicine::withTrashed()->whereIn('id', $this->selected)->forceDelete();
+            session()->flash('success', $count . ' medicine(s) permanently deleted.');
+            $this->selected = [];
+            $this->selectAll = false;
+        } catch (\Throwable $e) {
+            session()->flash('error', 'Could not permanently delete selected medicines: ' . $e->getMessage());
+        }
     }
 
     public function resetForm(): void
     {
         $this->reset([
-            'editingId', 'name', 'genericName', 'manufacturer', 'sku',
-            'unitPrice', 'costPrice', 'quantity', 'reorderLevel',
+            'editingId', 'name', 'genericName', 'manufacturer',
+            'unitPrice', 'costPrice', 'quantity',
             'expiryDate', 'description',
         ]);
         $this->category_field = 'General';
         $this->medicineType = 'Tablet';
         $this->unitPrice = '0';
         $this->costPrice = '0';
-        $this->reorderLevel = 10;
         $this->resetValidation();
     }
 
@@ -206,12 +234,11 @@ class Index extends Component
         $query = Medicine::query();
 
         if ($this->q !== '') {
-            $term = "%{$this->q}%";
+            $term = '%' . strtolower($this->q) . '%';
             $query->where(function ($q) use ($term) {
-                $q->where('name', 'ilike', $term)
-                    ->orWhere('generic_name', 'ilike', $term)
-                    ->orWhere('sku', 'ilike', $term)
-                    ->orWhere('manufacturer', 'ilike', $term);
+                $q->whereRaw('LOWER(name) LIKE ?', [$term])
+                    ->orWhereRaw('LOWER(generic_name) LIKE ?', [$term])
+                    ->orWhereRaw('LOWER(manufacturer) LIKE ?', [$term]);
             });
         }
 
@@ -223,12 +250,14 @@ class Index extends Component
             $query->where('medicine_type', $this->type);
         }
 
+        $threshold = \App\Models\Setting::current()->low_stock_threshold;
+
         if ($this->stock === 'low') {
-            $query->whereColumn('quantity', '<=', 'reorder_level')->where('quantity', '>', 0);
+            $query->where('quantity', '>', 0)->where('quantity', '<=', $threshold);
         } elseif ($this->stock === 'out') {
             $query->where('quantity', 0);
         } elseif ($this->stock === 'ok') {
-            $query->whereColumn('quantity', '>', 'reorder_level');
+            $query->where('quantity', '>', $threshold);
         }
 
         $medicines = $query->orderBy('name')->paginate(15);
@@ -239,6 +268,7 @@ class Index extends Component
             'medicines' => $medicines,
             'categories' => $categories,
             'trashed' => $trashed,
+            'lowStockThreshold' => $threshold,
         ]);
     }
 }

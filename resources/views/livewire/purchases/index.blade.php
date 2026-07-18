@@ -9,6 +9,13 @@
         </button>
     </div>
 
+    @if (session('success'))
+        <div class="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('success') }}</div>
+    @endif
+    @if (session('error'))
+        <div class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ session('error') }}</div>
+    @endif
+
     @if (count($selected) > 0)
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3">
             <span class="text-sm font-medium text-teal-800">{{ count($selected) }} selected</span>
@@ -132,7 +139,7 @@
                             <select wire:model="pickMedicineId" class="cursor-pointer rounded-xl border border-slate-200 px-3 py-2 text-sm sm:col-span-2">
                                 <option value="">Select medicine</option>
                                 @foreach ($medicines as $medicine)
-                                    <option value="{{ $medicine->id }}">{{ $medicine->name }} ({{ $medicine->sku }})</option>
+                                    <option value="{{ $medicine->id }}">{{ $medicine->name }} ({{ $medicine->medicine_type }})</option>
                                 @endforeach
                             </select>
                             <input type="number" min="1" wire:model="pickQuantity" placeholder="Qty" class="rounded-xl border border-slate-200 px-3 py-2 text-sm" />

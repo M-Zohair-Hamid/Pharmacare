@@ -13,6 +13,7 @@ class Settings extends Component
     public string $ownerName = '';
     public string $phone = '';
     public string $address = '';
+    public int $lowStockThreshold = 10;
 
     public bool $saved = false;
 
@@ -23,6 +24,7 @@ class Settings extends Component
             'ownerName' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:50',
             'address' => 'nullable|string',
+            'lowStockThreshold' => 'required|integer|min:0',
         ];
     }
 
@@ -33,6 +35,7 @@ class Settings extends Component
         $this->ownerName = $settings->owner_name ?? '';
         $this->phone = $settings->phone ?? '';
         $this->address = $settings->address ?? '';
+        $this->lowStockThreshold = $settings->low_stock_threshold ?? 10;
     }
 
     public function save(): void
@@ -44,6 +47,7 @@ class Settings extends Component
             'owner_name' => $validated['ownerName'] ?: null,
             'phone' => $validated['phone'] ?: null,
             'address' => $validated['address'] ?: null,
+            'low_stock_threshold' => $validated['lowStockThreshold'],
         ]);
 
         $this->saved = true;

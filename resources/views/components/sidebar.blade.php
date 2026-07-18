@@ -6,7 +6,6 @@ $nav = [
     ['route' => 'sales.history', 'label' => 'Billing History'],
     ['route' => 'purchases.index', 'label' => 'Purchases'],
     ['route' => 'suppliers.index', 'label' => 'Suppliers'],
-    ['route' => 'customers.index', 'label' => 'Customers'],
     ['route' => 'settings.index', 'label' => 'Settings'],
 ];
 $pharmacyName = \App\Models\Setting::current()->pharmacy_name;

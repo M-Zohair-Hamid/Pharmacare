@@ -9,7 +9,7 @@ class ReceiptController extends Controller
 {
     public function show(Sale $sale)
     {
-        $sale->load(['customer', 'items.medicine']);
+        $sale->load('items.medicine');
 
         return view('receipts.sale', [
             'sale' => $sale,

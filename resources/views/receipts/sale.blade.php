@@ -57,11 +57,11 @@
                 <div class="meta">{{ $settings->address }}</div>
             @endif
             <div class="meta">Sale #{{ $sale->id }} · Bill Code: {{ $sale->bill_code }}</div>
-            <div class="meta">{{ $sale->created_at->format('M j, Y g:i A') }}</div>
+            <div class="meta">{{ $sale->created_at->timezone('Asia/Karachi')->format('j F Y, g:i A') }} PKT</div>
         </div>
 
         <div class="meta">
-            Customer: {{ $sale->customer_name ?? $sale->customer->name ?? 'Walk-in' }}
+            Customer: {{ $sale->customer_name ?? 'Walk-in' }}
             <br />Payment: {{ ucfirst($sale->payment_method) }}
             @if ($sale->notes)
                 <br />Notes: {{ $sale->notes }}
@@ -83,7 +83,7 @@
                     <tr>
                         <td>
                             <div class="item-name">{{ $item->medicine->name ?? 'Unknown item' }}</div>
-                            <div class="item-sku">{{ $item->medicine->sku ?? '' }}</div>
+                            <div class="item-sku">{{ $item->medicine->medicine_type ?? '' }}</div>
                         </td>
                         <td class="right">{{ $item->unit_type }}</td>
                         <td class="right">{{ $item->quantity }}</td>

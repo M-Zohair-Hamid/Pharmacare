@@ -4,9 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class Sale extends Model
 {
@@ -16,7 +16,6 @@ class Sale extends Model
 
     protected $fillable = [
         'bill_code',
-        'customer_id',
         'customer_name',
         'total_amount',
         'payment_method',
@@ -31,28 +30,34 @@ class Sale extends Model
     protected static function booted(): void
     {
         static::creating(function (Sale $sale) {
-            $sale->created_at ??= now();
+            // Store in PKT so history/receipts show correct Pakistan time regardless of server tz.
+            $sale->created_at ??= now('Asia/Karachi');
             $sale->bill_code ??= static::generateBillCode();
         });
     }
 
     /**
-     * Generates a unique 6-digit code made of 6 different single digits (no repeats).
+     * Generates the next sequential 6-digit bill code (000001, 000002, ...).
+     * Uses a dedicated counter row + row lock so codes stay unique and gap-free
+     * even under concurrent checkouts.
      */
     public static function generateBillCode(): string
     {
-        do {
-            $digits = range(0, 9);
-            shuffle($digits);
-            $code = implode('', array_slice($digits, 0, 6));
-        } while (static::withTrashed()->where('bill_code', $code)->exists());
+        return DB::transaction(function () {
+            $counter = DB::table('bill_code_counters')->where('id', 1)->lockForUpdate()->first();
 
-        return $code;
-    }
+            if (!$counter) {
+                // Recover if the counter row is missing: continue from the latest bill.
+                $max = static::withTrashed()->max('bill_code');
+                $next = $max ? ((int) $max) + 1 : 1;
+                DB::table('bill_code_counters')->insert(['id' => 1, 'next_value' => $next + 1]);
+            } else {
+                $next = $counter->next_value;
+                DB::table('bill_code_counters')->where('id', 1)->update(['next_value' => $next + 1]);
+            }
 
-    public function customer(): BelongsTo
-    {
-        return $this->belongsTo(Customer::class);
+            return str_pad((string) $next, 6, '0', STR_PAD_LEFT);
+        });
     }
 
     public function items(): HasMany

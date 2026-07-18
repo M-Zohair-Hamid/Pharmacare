@@ -15,11 +15,18 @@
         </button>
     </div>
 
+    @if (session('success'))
+        <div class="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('success') }}</div>
+    @endif
+    @if (session('error'))
+        <div class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ session('error') }}</div>
+    @endif
+
     <div class="mb-4 flex flex-col gap-3 sm:flex-row">
         <input
             type="text"
             wire:model.live.debounce.300ms="q"
-            placeholder="Search by name, SKU, manufacturer..."
+            placeholder="Search by name, generic name, manufacturer..."
             class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-teal-500/30 focus:border-teal-500 focus:ring-4 sm:max-w-sm"
         />
         <select wire:model.live="category" class="cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
@@ -73,7 +80,7 @@
                         <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Medicine</th>
                         <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Type</th>
                         <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Category</th>
-                        <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Price</th>
+                        <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Unit Price</th>
                         <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Qty</th>
                         <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Expiry</th>
                         <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
@@ -88,12 +95,17 @@
                             </td>
                             <td class="px-4 py-3 align-middle text-slate-700">
                                 <div class="font-medium text-slate-900">{{ $medicine->name }}</div>
-                                <div class="text-xs text-slate-500">{{ $medicine->sku }} · {{ $medicine->manufacturer ?? '—' }}</div>
+                                <div class="text-xs text-slate-500">{{ $medicine->manufacturer ?? '—' }}</div>
                             </td>
-                            <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->medicine_type }}</td>
+                            <td class="px-4 py-3 align-middle text-slate-700">
+                                <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{{ $medicine->medicine_type }}</span>
+                            </td>
                             <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->category }}</td>
-                            <td class="px-4 py-3 align-middle text-slate-700">{{ number_format($medicine->unit_price, 2) }}</td>
-                            <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->quantity }} / {{ $medicine->reorder_level }}</td>
+                            <td class="px-4 py-3 align-middle text-slate-700">
+                                {{ number_format($medicine->unit_price, 2) }}
+                                <span class="text-xs text-slate-400">/ {{ $medicine->medicine_type }}</span>
+                            </td>
+                            <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->quantity }}</td>
                             <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->expiry_date?->format('M j, Y') ?? '—' }}</td>
                             <td class="px-4 py-3 align-middle text-slate-700">
                                 @php $status = $medicine->stock_status; @endphp
@@ -138,7 +150,7 @@
                         <thead>
                             <tr class="border-b border-slate-100">
                                 <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Medicine</th>
-                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">SKU</th>
+                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Type</th>
                                 <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Deleted at</th>
                                 <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500"></th>
                             </tr>
@@ -147,12 +159,12 @@
                             @foreach ($trashed as $medicine)
                                 <tr wire:key="trashed-{{ $medicine->id }}" class="border-b border-slate-50 last:border-0">
                                     <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->name }}</td>
-                                    <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->sku }}</td>
+                                    <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->medicine_type }}</td>
                                     <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->deleted_at?->format('M j, Y g:i A') }}</td>
                                     <td class="px-4 py-3 align-middle text-right">
                                         <button
                                             wire:click="forceDelete({{ $medicine->id }})"
-                                            wire:confirm="Permanently delete {{ $medicine->name }}? This cannot be undone."
+                                            wire:confirm="Permanently delete {{ $medicine->name }}? This cannot be undone and will also remove its sale/purchase history."
                                             class="cursor-pointer text-sm font-medium text-rose-600 transition-colors duration-150 hover:text-rose-700"
                                         >Force delete</button>
                                     </td>
@@ -185,12 +197,13 @@
                         <input type="text" wire:model="genericName" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
                     </div>
                     <div>
-                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Medicine Type</label>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Medicine Type / Unit</label>
                         <select wire:model="medicineType" class="w-full cursor-pointer rounded-xl border border-slate-200 px-3 py-2 text-sm">
                             @foreach ($medicineTypes as $t)
                                 <option value="{{ $t }}">{{ $t }}</option>
                             @endforeach
                         </select>
+                        <p class="mt-1 text-xs text-slate-400">The unit price below applies per {{ strtolower($medicineType) }}.</p>
                         @error('medicineType') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
                     </div>
                     <div>
@@ -203,12 +216,9 @@
                         <input type="text" wire:model="manufacturer" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
                     </div>
                     <div>
-                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">SKU</label>
-                        <input type="text" wire:model="sku" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-                        @error('sku') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
-                    </div>
-                    <div>
-                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Unit Price</label>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Unit Price <span class="normal-case text-slate-400">(per {{ strtolower($medicineType) }})</span>
+                        </label>
                         <input type="number" step="0.01" wire:model="unitPrice" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
                         @error('unitPrice') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
                     </div>
@@ -218,14 +228,9 @@
                         @error('costPrice') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
                     </div>
                     <div>
-                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Quantity</label>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Quantity in Stock</label>
                         <input type="number" wire:model="quantity" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
                         @error('quantity') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
-                    </div>
-                    <div>
-                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Reorder Level</label>
-                        <input type="number" wire:model="reorderLevel" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-                        @error('reorderLevel') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
                     </div>
                     <div>
                         <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Expiry Date</label>

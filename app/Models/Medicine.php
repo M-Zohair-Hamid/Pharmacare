@@ -11,7 +11,8 @@ class Medicine extends Model
 {
     use HasFactory, SoftDeletes;
 
-    public const TYPES = ['Tablet', 'Capsule', 'Syrup', 'Cream', 'Gel', 'Drops', 'Injection', 'Ointment', 'Powder', 'Other'];
+    /** Medicine Type / Unit — determines what the unit price represents (per tablet, per box, etc). */
+    public const TYPES = ['Tablet', 'Capsule', 'Box', 'Bottle', 'Strip', 'Syrup', 'Injection', 'Other'];
 
     protected $fillable = [
         'name',
@@ -19,11 +20,9 @@ class Medicine extends Model
         'category',
         'medicine_type',
         'manufacturer',
-        'sku',
         'unit_price',
         'cost_price',
         'quantity',
-        'reorder_level',
         'expiry_date',
         'description',
     ];
@@ -32,7 +31,6 @@ class Medicine extends Model
         'unit_price' => 'decimal:2',
         'cost_price' => 'decimal:2',
         'quantity' => 'integer',
-        'reorder_level' => 'integer',
         'expiry_date' => 'datetime',
     ];
 
@@ -46,13 +44,13 @@ class Medicine extends Model
         return $this->hasMany(PurchaseItem::class);
     }
 
-    /** Mirrors utils.ts stockStatus() */
+    /** Mirrors utils.ts stockStatus(), using the pharmacy-wide low stock threshold from Settings. */
     public function getStockStatusAttribute(): string
     {
         if ($this->quantity <= 0) {
             return 'out';
         }
-        if ($this->quantity <= $this->reorder_level) {
+        if ($this->quantity <= Setting::current()->low_stock_threshold) {
             return 'low';
         }
         return 'ok';
@@ -65,7 +63,8 @@ class Medicine extends Model
 
     public function scopeLowStock($query)
     {
-        return $query->whereColumn('quantity', '<=', 'reorder_level');
+        $threshold = Setting::current()->low_stock_threshold;
+        return $query->where('quantity', '>', 0)->where('quantity', '<=', $threshold);
     }
 
     public function scopeExpiringSoon($query, int $days = 60)
@@ -79,5 +78,14 @@ class Medicine extends Model
     {
         return $query->whereNotNull('expiry_date')
             ->where('expiry_date', '<', now());
+    }
+
+    /**
+     * Human label combining unit price with the medicine type,
+     * e.g. "Rs. 100.00 / Strip".
+     */
+    public function getUnitPriceLabelAttribute(): string
+    {
+        return number_format((float) $this->unit_price, 2) . ' / ' . $this->medicine_type;
     }
 }

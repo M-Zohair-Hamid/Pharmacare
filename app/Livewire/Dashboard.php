@@ -2,10 +2,10 @@
 
 namespace App\Livewire;
 
-use App\Models\Customer;
 use App\Models\Medicine;
 use App\Models\Purchase;
 use App\Models\Sale;
+use App\Models\Setting;
 use App\Models\Supplier;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -17,7 +17,6 @@ class Dashboard extends Component
     {
         $medicineCount = Medicine::count();
         $supplierCount = Supplier::count();
-        $customerCount = Customer::count();
         $saleCount = Sale::count();
         $purchaseCount = Purchase::count();
 
@@ -26,8 +25,10 @@ class Dashboard extends Component
             ->selectRaw('coalesce(sum(quantity * unit_price), 0) as value')
             ->value('value');
 
+        $threshold = Setting::current()->low_stock_threshold;
+
         $lowStock = Medicine::query()
-            ->whereColumn('quantity', '<=', 'reorder_level')
+            ->where('quantity', '<=', $threshold)
             ->orderBy('quantity')
             ->limit(8)
             ->get();
@@ -40,7 +41,6 @@ class Dashboard extends Component
             ->get();
 
         $recentSales = Sale::query()
-            ->with('customer')
             ->orderByDesc('created_at')
             ->limit(6)
             ->get();
@@ -54,11 +54,11 @@ class Dashboard extends Component
         return view('livewire.dashboard', [
             'medicineCount' => $medicineCount,
             'supplierCount' => $supplierCount,
-            'customerCount' => $customerCount,
             'saleCount' => $saleCount,
             'purchaseCount' => $purchaseCount,
             'revenue' => $revenue,
             'inventoryValue' => $inventoryValue,
+            'lowStockThreshold' => $threshold,
             'lowStock' => $lowStock,
             'expiringSoon' => $expiringSoon,
             'recentSales' => $recentSales,

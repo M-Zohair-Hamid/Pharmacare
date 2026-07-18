@@ -27,6 +27,12 @@
                 <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Phone Number</label>
                 <input type="text" wire:model="phone" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
             </div>
+            <div>
+                <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Low Stock Threshold</label>
+                <input type="number" min="0" wire:model="lowStockThreshold" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                <p class="mt-1 text-xs text-slate-400">Medicines at or below this quantity are flagged as low stock.</p>
+                @error('lowStockThreshold') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
+            </div>
             <div class="sm:col-span-2">
                 <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Address</label>
                 <textarea wire:model="address" rows="3" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"></textarea>

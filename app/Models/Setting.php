@@ -11,6 +11,11 @@ class Setting extends Model
         'owner_name',
         'phone',
         'address',
+        'low_stock_threshold',
+    ];
+
+    protected $casts = [
+        'low_stock_threshold' => 'integer',
     ];
 
     public static function current(): self

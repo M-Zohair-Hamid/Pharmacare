@@ -18,7 +18,7 @@
     <div class="grid gap-6 lg:grid-cols-3">
         {{-- Product picker --}}
         <div class="lg:col-span-2">
-            <input type="text" wire:model.live.debounce.300ms="search" placeholder="Search medicine by name or SKU..."
+            <input type="text" wire:model.live.debounce.300ms="search" placeholder="Search medicine by name or generic name..."
                 class="mb-4 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
 
             <div class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
@@ -27,7 +27,8 @@
                         <thead>
                             <tr class="border-b border-slate-100">
                                 <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Medicine</th>
-                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Price</th>
+                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Type</th>
+                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Unit Price</th>
                                 <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">In stock</th>
                                 <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500"></th>
                             </tr>
@@ -37,16 +38,22 @@
                                 <tr wire:key="pick-{{ $medicine->id }}" class="border-b border-slate-50 last:border-0">
                                     <td class="px-4 py-3 align-middle">
                                         <div class="font-medium text-slate-900">{{ $medicine->name }}</div>
-                                        <div class="text-xs text-slate-500">{{ $medicine->sku }} · {{ $medicine->medicine_type }}</div>
+                                        <div class="text-xs text-slate-500">{{ $medicine->manufacturer ?? '—' }}</div>
                                     </td>
-                                    <td class="px-4 py-3 align-middle text-slate-700">{{ number_format($medicine->unit_price, 2) }}</td>
+                                    <td class="px-4 py-3 align-middle">
+                                        <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{{ $medicine->medicine_type }}</span>
+                                    </td>
+                                    <td class="px-4 py-3 align-middle text-slate-700">
+                                        {{ number_format($medicine->unit_price, 2) }}
+                                        <span class="text-xs text-slate-400">/ {{ $medicine->medicine_type }}</span>
+                                    </td>
                                     <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->quantity }}</td>
                                     <td class="px-4 py-3 align-middle text-right">
                                         <button wire:click="addToCart({{ $medicine->id }})" class="cursor-pointer rounded-xl bg-teal-600 px-3 py-1.5 text-xs font-medium text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-teal-700 hover:shadow-md active:translate-y-0">Add</button>
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="4" class="px-4 py-12 text-center text-sm text-slate-500">No medicines in stock match your search.</td></tr>
+                                <tr><td colspan="5" class="px-4 py-12 text-center text-sm text-slate-500">No medicines in stock match your search.</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -66,7 +73,9 @@
                             <div class="flex items-center justify-between gap-2">
                                 <div class="min-w-0">
                                     <p class="truncate text-sm font-medium text-slate-900">{{ $item['name'] }}</p>
-                                    <p class="text-xs text-slate-500">{{ number_format($item['unit_price'], 2) }} each</p>
+                                    <p class="text-xs text-slate-500">
+                                        {{ number_format($item['unit_price'], 2) }} / {{ $item['unit_type'] }}
+                                    </p>
                                 </div>
                                 <button wire:click="removeFromCart({{ $medicineId }})" class="cursor-pointer text-xs text-rose-600 transition-colors duration-150 hover:text-rose-700">Remove</button>
                             </div>
@@ -77,16 +86,12 @@
                                     max="{{ $item['available'] }}"
                                     value="{{ $item['quantity'] }}"
                                     wire:change="updateQuantity({{ $medicineId }}, $event.target.value)"
-                                    class="w-16 rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                                    class="w-20 rounded-lg border border-slate-200 px-2 py-1 text-sm"
                                 />
-                                <select
-                                    wire:change="updateUnitType({{ $medicineId }}, $event.target.value)"
-                                    class="w-full cursor-pointer rounded-lg border border-slate-200 px-2 py-1 text-sm"
-                                >
-                                    @foreach ($unitTypes as $unitType)
-                                        <option value="{{ $unitType }}" @selected($item['unit_type'] === $unitType)>{{ $unitType }}</option>
-                                    @endforeach
-                                </select>
+                                <span class="text-sm text-slate-500">{{ $item['unit_type'] }}(s)</span>
+                                <span class="ml-auto text-sm font-medium text-slate-900">
+                                    {{ number_format($item['quantity'] * $item['unit_price'], 2) }}
+                                </span>
                             </div>
                         </div>
                     @empty

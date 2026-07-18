@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Sales;
 
-use App\Models\Customer;
 use App\Models\Medicine;
 use App\Models\Sale;
 use Illuminate\Support\Facades\DB;
@@ -20,13 +19,11 @@ class Pos extends Component
     public string $paymentMethod = 'cash';
     public string $notes = '';
 
-    /** @var array<int, array{medicine_id:int, name:string, sku:string, quantity:int, unit_type:string, unit_price:float, available:int}> */
+    /** @var array<int, array{medicine_id:int, name:string, quantity:int, unit_type:string, unit_price:float, available:int}> */
     public array $cart = [];
 
     public ?int $lastSaleId = null;
     public ?string $lastBillCode = null;
-
-    public array $unitTypes = ['Box', 'Tablet', 'Strip', 'Bottle', 'Piece'];
 
     public function addToCart(int $medicineId): void
     {
@@ -37,6 +34,11 @@ class Pos extends Component
             return;
         }
 
+        if ($medicine->is_expired) {
+            $this->addError('cart', "{$medicine->name} is expired and cannot be sold.");
+            return;
+        }
+
         if (isset($this->cart[$medicineId])) {
             if ($this->cart[$medicineId]['quantity'] + 1 > $medicine->quantity) {
                 $this->addError('cart', "Not enough stock for {$medicine->name}.");
@@ -44,12 +46,13 @@ class Pos extends Component
             }
             $this->cart[$medicineId]['quantity']++;
         } else {
+            // Unit type/price always come from the medicine itself — not user-selectable —
+            // so the sale always reflects how the medicine is actually sold (per tablet, box, etc).
             $this->cart[$medicineId] = [
                 'medicine_id' => $medicine->id,
                 'name' => $medicine->name,
-                'sku' => $medicine->sku,
                 'quantity' => 1,
-                'unit_type' => 'Tablet',
+                'unit_type' => $medicine->medicine_type,
                 'unit_price' => (float) $medicine->unit_price,
                 'available' => $medicine->quantity,
             ];
@@ -78,15 +81,6 @@ class Pos extends Component
         $this->resetErrorBag('cart');
     }
 
-    public function updateUnitType(int $medicineId, string $unitType): void
-    {
-        if (!isset($this->cart[$medicineId])) {
-            return;
-        }
-
-        $this->cart[$medicineId]['unit_type'] = $unitType;
-    }
-
     public function removeFromCart(int $medicineId): void
     {
         unset($this->cart[$medicineId]);
@@ -99,9 +93,9 @@ class Pos extends Component
 
     /**
      * Mirrors offline-sales.ts createOfflineSale(): validates stock,
-     * decrements medicine quantity, and writes sale + sale_items atomically.
-     * Customer is identified by free-text name (not a dropdown); matched or
-     * created against the customers table so history stays linkable.
+     * blocks expired medicines, decrements medicine quantity, and writes
+     * sale + sale_items atomically. Customer is a free-text label only
+     * (no customer records/table anymore).
      */
     public function checkout()
     {
@@ -123,13 +117,17 @@ class Pos extends Component
                         throw new \RuntimeException("Insufficient stock for {$medicine->name}.");
                     }
 
+                    if ($medicine->expiry_date !== null && $medicine->expiry_date->isPast()) {
+                        throw new \RuntimeException("{$medicine->name} is expired and cannot be sold.");
+                    }
+
                     $subtotal = $item['quantity'] * $item['unit_price'];
                     $total += $subtotal;
 
                     $lineItems[] = [
                         'medicine_id' => $medicine->id,
                         'quantity' => $item['quantity'],
-                        'unit_type' => $item['unit_type'],
+                        'unit_type' => $medicine->medicine_type,
                         'unit_price' => $item['unit_price'],
                         'subtotal' => $subtotal,
                     ];
@@ -137,17 +135,8 @@ class Pos extends Component
                     $medicine->decrement('quantity', $item['quantity']);
                 }
 
-                $customerId = null;
-                $customerName = trim($this->customerName) ?: null;
-
-                if ($customerName) {
-                    $customer = Customer::firstOrCreate(['name' => $customerName]);
-                    $customerId = $customer->id;
-                }
-
                 $sale = Sale::create([
-                    'customer_id' => $customerId,
-                    'customer_name' => $customerName,
+                    'customer_name' => trim($this->customerName) ?: null,
                     'total_amount' => $total,
                     'payment_method' => $this->paymentMethod,
                     'notes' => $this->notes ?: null,
@@ -175,13 +164,16 @@ class Pos extends Component
     {
         $medicines = Medicine::query()
             ->when($this->search !== '', function ($q) {
-                $term = "%{$this->search}%";
+                $term = '%' . strtolower($this->search) . '%';
                 $q->where(function ($qq) use ($term) {
-                    $qq->whereRaw('LOWER(name) LIKE ?', [strtolower($term)])
-    			->orWhereRaw('LOWER(sku) LIKE ?', [strtolower($term)]);
+                    $qq->whereRaw('LOWER(name) LIKE ?', [$term])
+                        ->orWhereRaw('LOWER(generic_name) LIKE ?', [$term]);
                 });
             })
             ->where('quantity', '>', 0)
+            ->where(function ($q) {
+                $q->whereNull('expiry_date')->orWhere('expiry_date', '>=', now());
+            })
             ->orderBy('name')
             ->paginate(10);
 

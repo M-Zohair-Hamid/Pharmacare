@@ -19,7 +19,7 @@ class Index extends Component
     public ?int $supplierId = null;
     public string $notes = '';
 
-    /** @var array<int, array{medicine_id:int, name:string, sku:string, quantity:int, unit_cost:float}> */
+    /** @var array<int, array{medicine_id:int, name:string, medicine_type:string, quantity:int, unit_cost:float}> */
     public array $items = [];
 
     public string $pickMedicineId = '';
@@ -42,7 +42,7 @@ class Index extends Component
         $this->items[$medicine->id] = [
             'medicine_id' => $medicine->id,
             'name' => $medicine->name,
-            'sku' => $medicine->sku,
+            'medicine_type' => $medicine->medicine_type,
             'quantity' => (int) $this->pickQuantity,
             'unit_cost' => (float) $this->pickUnitCost,
         ];
@@ -134,21 +134,47 @@ class Index extends Component
 
     public function forceDelete(int $id): void
     {
-        Purchase::withTrashed()->findOrFail($id)->forceDelete();
+        try {
+            Purchase::withTrashed()->findOrFail($id)->forceDelete();
+            session()->flash('success', 'Purchase permanently deleted.');
+        } catch (\Throwable $e) {
+            session()->flash('error', 'Could not permanently delete this purchase: ' . $e->getMessage());
+        }
     }
 
     public function bulkDelete(): void
     {
-        Purchase::whereIn('id', $this->selected)->delete();
-        $this->selected = [];
-        $this->selectAll = false;
+        if (empty($this->selected)) {
+            session()->flash('error', 'No purchases selected.');
+            return;
+        }
+
+        try {
+            Purchase::whereIn('id', $this->selected)->delete();
+            session()->flash('success', count($this->selected) . ' purchase(s) moved to trash.');
+            $this->selected = [];
+            $this->selectAll = false;
+        } catch (\Throwable $e) {
+            session()->flash('error', 'Could not delete selected purchases: ' . $e->getMessage());
+        }
     }
 
     public function bulkForceDelete(): void
     {
-        Purchase::withTrashed()->whereIn('id', $this->selected)->forceDelete();
-        $this->selected = [];
-        $this->selectAll = false;
+        if (empty($this->selected)) {
+            session()->flash('error', 'No purchases selected.');
+            return;
+        }
+
+        try {
+            $count = count($this->selected);
+            Purchase::withTrashed()->whereIn('id', $this->selected)->forceDelete();
+            session()->flash('success', $count . ' purchase(s) permanently deleted.');
+            $this->selected = [];
+            $this->selectAll = false;
+        } catch (\Throwable $e) {
+            session()->flash('error', 'Could not permanently delete selected purchases: ' . $e->getMessage());
+        }
     }
 
     public function render()

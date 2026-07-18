@@ -2,9 +2,16 @@
     <div class="mb-6">
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">Billing History</h1>
         <p class="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
-            Full customer and billing history, all time — searchable by date or bill code.
+            Full billing history, all time — searchable by date or bill code. Times shown in Pakistan Standard Time (PKT).
         </p>
     </div>
+
+    @if (session('success'))
+        <div class="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('success') }}</div>
+    @endif
+    @if (session('error'))
+        <div class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ session('error') }}</div>
+    @endif
 
     <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <input
@@ -52,7 +59,7 @@
                             <input type="checkbox" wire:model.live="selectAll" class="cursor-pointer rounded border-slate-300" />
                         </th>
                         <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Bill Code</th>
-                        <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Date</th>
+                        <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Date (PKT)</th>
                         <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Customer</th>
                         <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Items</th>
                         <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Payment</th>
@@ -69,18 +76,13 @@
                             <td class="px-4 py-3 align-middle">
                                 <span class="font-mono text-sm font-semibold tracking-widest text-slate-900">{{ $sale->bill_code }}</span>
                             </td>
-                            <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->created_at->format('M j, Y g:i A') }}</td>
-                            <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->customer_name ?? $sale->customer->name ?? 'Walk-in' }}</td>
+                            <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->created_at->timezone('Asia/Karachi')->format('j M Y, g:i A') }} PKT</td>
+                            <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->customer_name ?? 'Walk-in' }}</td>
                             <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->items->count() }}</td>
                             <td class="px-4 py-3 align-middle text-slate-700">{{ ucfirst($sale->payment_method) }}</td>
                             <td class="px-4 py-3 align-middle font-medium text-slate-900">{{ number_format($sale->total_amount, 2) }}</td>
                             <td class="px-4 py-3 align-middle text-right">
                                 <a href="{{ route('sales.receipt', $sale->id) }}" target="_blank" class="cursor-pointer text-sm font-medium text-teal-700 transition-colors duration-150 hover:text-teal-800">Receipt</a>
-                                <button
-                                    wire:click="resetBillCode({{ $sale->id }})"
-                                    wire:confirm="Reset bill code for this sale to a new 6-digit code?"
-                                    class="ml-3 cursor-pointer text-sm font-medium text-slate-600 transition-colors duration-150 hover:text-slate-800"
-                                >Reset code</button>
                                 <button
                                     wire:click="delete({{ $sale->id }})"
                                     wire:confirm="Delete this sale record? It can be restored or force-deleted later."
@@ -107,7 +109,7 @@
                             <tr class="border-b border-slate-100">
                                 <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Bill Code</th>
                                 <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Customer</th>
-                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Deleted at</th>
+                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Deleted at (PKT)</th>
                                 <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500"></th>
                             </tr>
                         </thead>
@@ -115,8 +117,8 @@
                             @foreach ($trashed as $sale)
                                 <tr wire:key="trashed-sale-{{ $sale->id }}" class="border-b border-slate-50 last:border-0">
                                     <td class="px-4 py-3 align-middle font-mono text-sm">{{ $sale->bill_code }}</td>
-                                    <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->customer_name ?? $sale->customer->name ?? 'Walk-in' }}</td>
-                                    <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->deleted_at?->format('M j, Y g:i A') }}</td>
+                                    <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->customer_name ?? 'Walk-in' }}</td>
+                                    <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->deleted_at?->timezone('Asia/Karachi')->format('j M Y, g:i A') }} PKT</td>
                                     <td class="px-4 py-3 align-middle text-right">
                                         <button
                                             wire:click="forceDelete({{ $sale->id }})"

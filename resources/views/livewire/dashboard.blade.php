@@ -19,8 +19,7 @@
         <x-stat-card label="Stock Alerts" :value="$lowStock->count()" :hint="$lowStock->where('quantity', '<=', 0)->count() . ' out of stock'" accent="rose" />
     </div>
 
-    <div class="mt-4 grid gap-4 md:grid-cols-3">
-        <x-stat-card label="Customers" :value="$customerCount" accent="amber" />
+    <div class="mt-4 grid gap-4 sm:grid-cols-2">
         <x-stat-card label="Suppliers" :value="$supplierCount" accent="teal" />
         <x-stat-card label="Purchases" :value="$purchaseCount" accent="indigo" />
     </div>
@@ -30,7 +29,7 @@
             <div class="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 class="text-lg font-semibold text-slate-900">Low Stock</h2>
-                    <p class="mt-1 text-sm text-slate-500">Medicines at or below reorder level</p>
+                    <p class="mt-1 text-sm text-slate-500">At or below {{ $lowStockThreshold }} units</p>
                 </div>
                 <a href="{{ route('medicines.index') }}" class="cursor-pointer text-sm font-medium text-teal-700 transition-colors duration-150 hover:text-teal-800">View all</a>
             </div>
@@ -48,9 +47,9 @@
                             <tr class="border-b border-slate-50 last:border-0">
                                 <td class="px-4 py-3 align-middle">
                                     <div class="font-medium text-slate-900">{{ $item->name }}</div>
-                                    <div class="text-xs text-slate-500">{{ $item->sku }} · {{ $item->category }}</div>
+                                    <div class="text-xs text-slate-500">{{ $item->medicine_type }} · {{ $item->category }}</div>
                                 </td>
-                                <td class="px-4 py-3 align-middle text-slate-700">{{ $item->quantity }} / {{ $item->reorder_level }}</td>
+                                <td class="px-4 py-3 align-middle text-slate-700">{{ $item->quantity }}</td>
                                 <td class="px-4 py-3 align-middle">
                                     <span @class([
                                         'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium',
@@ -85,11 +84,11 @@
                     </thead>
                     <tbody>
                         @forelse ($expiringSoon as $item)
-                            @php $days = now()->diffInDays($item->expiry_date, false); @endphp
+                            @php $days = (int) floor(now()->diffInDays($item->expiry_date, false)); @endphp
                             <tr class="border-b border-slate-50 last:border-0">
                                 <td class="px-4 py-3 align-middle">
                                     <div class="font-medium text-slate-900">{{ $item->name }}</div>
-                                    <div class="text-xs text-slate-500">{{ $item->sku }} · qty {{ $item->quantity }}</div>
+                                    <div class="text-xs text-slate-500">{{ $item->medicine_type }} · qty {{ $item->quantity }}</div>
                                 </td>
                                 <td class="px-4 py-3 align-middle text-slate-700">{{ $item->expiry_date->format('M j, Y') }}</td>
                                 <td class="px-4 py-3 align-middle">
@@ -116,7 +115,7 @@
             <div class="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 class="text-lg font-semibold text-slate-900">Recent Sales</h2>
-                    <p class="mt-1 text-sm text-slate-500">Latest transactions at the counter</p>
+                    <p class="mt-1 text-sm text-slate-500">Latest transactions at the counter (PKT)</p>
                 </div>
                 <a href="{{ route('sales.history') }}" class="cursor-pointer text-sm font-medium text-teal-700 transition-colors duration-150 hover:text-teal-800">Full history</a>
             </div>
@@ -135,9 +134,9 @@
                             <tr class="border-b border-slate-50 last:border-0">
                                 <td class="px-4 py-3 align-middle">
                                     <div class="font-medium text-slate-900">{{ $sale->bill_code }}</div>
-                                    <div class="text-xs text-slate-500">{{ $sale->created_at->format('M j, Y g:i A') }}</div>
+                                    <div class="text-xs text-slate-500">{{ $sale->created_at->timezone('Asia/Karachi')->format('M j, Y g:i A') }}</div>
                                 </td>
-                                <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->customer_name ?? $sale->customer->name ?? 'Walk-in' }}</td>
+                                <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->customer_name ?? 'Walk-in' }}</td>
                                 <td class="px-4 py-3 align-middle capitalize text-slate-700">{{ $sale->payment_method }}</td>
                                 <td class="px-4 py-3 align-middle font-medium text-slate-900">{{ number_format($sale->total_amount, 2) }}</td>
                             </tr>
@@ -160,7 +159,7 @@
                     <div>
                         <div class="mb-1 flex items-center justify-between text-sm">
                             <span class="font-medium text-slate-800">{{ $cat->category }}</span>
-                            <span class="text-slate-500">{{ $cat->items }} SKUs · {{ $cat->stock }} units</span>
+                            <span class="text-slate-500">{{ $cat->items }} items · {{ $cat->stock }} units</span>
                         </div>
                         <div class="h-2.5 overflow-hidden rounded-full bg-slate-100">
                             <div class="h-full rounded-full bg-linear-to-r from-teal-500 to-cyan-400" style="width: {{ $width }}%"></div>
