@@ -12,10 +12,15 @@ class Setting extends Model
         'phone',
         'address',
         'low_stock_threshold',
+        'refunds_enabled',
+        'refund_window_days',
+        'receipt_paper_width',
     ];
 
     protected $casts = [
         'low_stock_threshold' => 'integer',
+        'refunds_enabled' => 'boolean',
+        'refund_window_days' => 'integer',
     ];
 
     public static function current(): self

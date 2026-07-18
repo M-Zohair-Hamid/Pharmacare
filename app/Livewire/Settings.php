@@ -14,6 +14,9 @@ class Settings extends Component
     public string $phone = '';
     public string $address = '';
     public int $lowStockThreshold = 10;
+    public bool $refundsEnabled = false;
+    public ?int $refundWindowDays = null;
+    public string $receiptPaperWidth = '80';
 
     public bool $saved = false;
 
@@ -25,6 +28,18 @@ class Settings extends Component
             'phone' => 'nullable|string|max:50',
             'address' => 'nullable|string',
             'lowStockThreshold' => 'required|integer|min:0',
+            'refundsEnabled' => 'boolean',
+            'refundWindowDays' => $this->refundsEnabled
+                ? 'required|integer|min:1|max:365'
+                : 'nullable|integer|min:1|max:365',
+            'receiptPaperWidth' => 'required|in:58,80',
+        ];
+    }
+
+    protected function messages(): array
+    {
+        return [
+            'refundWindowDays.required' => 'Enter how many days after purchase a refund is allowed.',
         ];
     }
 
@@ -36,6 +51,14 @@ class Settings extends Component
         $this->phone = $settings->phone ?? '';
         $this->address = $settings->address ?? '';
         $this->lowStockThreshold = $settings->low_stock_threshold ?? 10;
+        $this->refundsEnabled = $settings->refunds_enabled ?? false;
+        $this->refundWindowDays = $settings->refund_window_days;
+        $this->receiptPaperWidth = $settings->receipt_paper_width ?? '80';
+    }
+
+    public function toggleRefunds(): void
+    {
+        $this->refundsEnabled = !$this->refundsEnabled;
     }
 
     public function save(): void
@@ -48,6 +71,9 @@ class Settings extends Component
             'phone' => $validated['phone'] ?: null,
             'address' => $validated['address'] ?: null,
             'low_stock_threshold' => $validated['lowStockThreshold'],
+            'refunds_enabled' => $validated['refundsEnabled'],
+            'refund_window_days' => $validated['refundsEnabled'] ? $validated['refundWindowDays'] : null,
+            'receipt_paper_width' => $validated['receiptPaperWidth'],
         ]);
 
         $this->saved = true;

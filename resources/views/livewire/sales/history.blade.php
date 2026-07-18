@@ -82,7 +82,15 @@
                             <td class="px-4 py-3 align-middle text-slate-700">{{ ucfirst($sale->payment_method) }}</td>
                             <td class="px-4 py-3 align-middle font-medium text-slate-900">{{ number_format($sale->total_amount, 2) }}</td>
                             <td class="px-4 py-3 align-middle text-right">
-                                <a href="{{ route('sales.receipt', $sale->id) }}" target="_blank" class="cursor-pointer text-sm font-medium text-teal-700 transition-colors duration-150 hover:text-teal-800">Receipt</a>
+                                @if ($sale->is_refunded)
+                                    <span class="mr-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">Refunded</span>
+                                @elseif ($settings->refunds_enabled && $sale->isRefundEligible())
+                                    <button
+                                        wire:click="openRefund({{ $sale->id }})"
+                                        class="cursor-pointer text-sm font-medium text-amber-700 transition-colors duration-150 hover:text-amber-800"
+                                    >Refund</button>
+                                @endif
+                                <a href="{{ route('sales.receipt', $sale->id) }}" target="_blank" class="ml-3 cursor-pointer text-sm font-medium text-teal-700 transition-colors duration-150 hover:text-teal-800">Receipt</a>
                                 <button
                                     wire:click="delete({{ $sale->id }})"
                                     wire:confirm="Delete this sale record? It can be restored or force-deleted later."
@@ -130,6 +138,33 @@
                             @endforeach
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Refund confirmation modal --}}
+    @if ($showRefundModal)
+        <div class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 p-4 sm:items-center">
+            <div class="absolute inset-0 cursor-pointer" wire:click="cancelRefund"></div>
+            <div class="relative z-10 w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
+                <div class="border-b border-slate-100 px-5 py-4">
+                    <h3 class="text-lg font-semibold text-slate-900">Refund Sale</h3>
+                    <p class="mt-1 text-sm text-slate-500">This restores the sold quantities back to stock and marks the sale as refunded. This cannot be undone.</p>
+                </div>
+                <div class="p-5">
+                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Reason <span class="normal-case text-slate-400">(optional)</span></label>
+                    <textarea wire:model="refundReason" rows="3" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="e.g. Customer returned unused items"></textarea>
+                    @error('refundReason') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
+                </div>
+                <div class="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
+                    <button type="button" wire:click="cancelRefund" class="cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-50">Cancel</button>
+                    <button
+                        type="button"
+                        wire:click="confirmRefund"
+                        wire:confirm="Confirm refund? Stock will be restored and this cannot be undone."
+                        class="cursor-pointer rounded-xl bg-amber-600 px-4 py-2 text-sm font-medium text-white transition-colors duration-150 hover:bg-amber-700"
+                    >Confirm Refund</button>
                 </div>
             </div>
         </div>

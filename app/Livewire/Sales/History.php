@@ -3,6 +3,7 @@
 namespace App\Livewire\Sales;
 
 use App\Models\Sale;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -24,6 +25,11 @@ class History extends Component
 
     public array $selected = [];
     public bool $selectAll = false;
+
+    // Refund modal state
+    public bool $showRefundModal = false;
+    public ?int $refundingSaleId = null;
+    public string $refundReason = '';
 
     public function updatingQ(): void
     {
@@ -47,6 +53,68 @@ class History extends Component
         } else {
             $this->selected = [];
         }
+    }
+
+    public function openRefund(int $saleId): void
+    {
+        $sale = Sale::findOrFail($saleId);
+
+        if (!$sale->isRefundEligible()) {
+            session()->flash('error', 'This sale is not eligible for a refund.');
+            return;
+        }
+
+        $this->refundingSaleId = $saleId;
+        $this->refundReason = '';
+        $this->showRefundModal = true;
+    }
+
+    public function cancelRefund(): void
+    {
+        $this->showRefundModal = false;
+        $this->refundingSaleId = null;
+        $this->refundReason = '';
+        $this->resetValidation();
+    }
+
+    /**
+     * Refunding a sale restocks every line item's quantity back onto its
+     * medicine and marks the sale as refunded. It intentionally does not
+     * delete the sale — the record stays for accounting/audit purposes.
+     */
+    public function confirmRefund(): void
+    {
+        if (!$this->refundingSaleId) {
+            return;
+        }
+
+        $sale = Sale::with('items.medicine')->findOrFail($this->refundingSaleId);
+
+        if (!$sale->isRefundEligible()) {
+            session()->flash('error', 'This sale is no longer eligible for a refund.');
+            $this->cancelRefund();
+            return;
+        }
+
+        $this->validate([
+            'refundReason' => 'nullable|string|max:500',
+        ]);
+
+        DB::transaction(function () use ($sale) {
+            foreach ($sale->items as $item) {
+                if ($item->medicine) {
+                    $item->medicine->increment('quantity', $item->quantity);
+                }
+            }
+
+            $sale->update([
+                'refunded_at' => now('Asia/Karachi'),
+                'refund_reason' => $this->refundReason ?: null,
+            ]);
+        });
+
+        session()->flash('success', "Sale {$sale->bill_code} refunded and stock restored.");
+        $this->cancelRefund();
     }
 
     public function delete(int $id): void
@@ -125,6 +193,7 @@ class History extends Component
         return view('livewire.sales.history', [
             'sales' => $sales,
             'trashed' => $trashed,
+            'settings' => \App\Models\Setting::current(),
         ]);
     }
 }

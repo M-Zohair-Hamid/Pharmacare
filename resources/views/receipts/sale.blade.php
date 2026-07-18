@@ -1,3 +1,10 @@
+@php
+    $paperWidth = $settings->receipt_paper_width === '58' ? '58' : '80';
+    // Printable width is slightly less than the physical roll width on real
+    // thermal printers (roughly 48mm on 58mm rolls, 72mm on 80mm rolls).
+    $printableWidthMm = $paperWidth === '58' ? 48 : 72;
+    $baseFontPx = $paperWidth === '58' ? 10 : 11;
+@endphp
 <!doctype html>
 <html>
 <head>
@@ -5,41 +12,85 @@
     <meta charset="utf-8" />
     <style>
         :root { color-scheme: light; }
-        body {
+
+        /* Zero-margin page sized to the physical roll so the browser print
+           dialog doesn't add its own default margins around the receipt. */
+        @@page {
+            size: {{ $paperWidth }}mm auto;
             margin: 0;
-            padding: 24px;
-            font-family: Arial, sans-serif;
-            color: #0f172a;
-            background: #fff;
         }
-        .receipt { max-width: 360px; margin: 0 auto; }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Courier New', Consolas, monospace;
+            color: #000;
+            background: #fff;
+            font-size: {{ $baseFontPx }}px;
+        }
+
+        .receipt {
+            width: {{ $printableWidthMm }}mm;
+            margin: 0 auto;
+            padding: 2mm 1.5mm;
+        }
+
         .header {
             text-align: center;
-            padding-bottom: 16px;
-            border-bottom: 1px dashed #cbd5e1;
-            margin-bottom: 16px;
+            padding-bottom: 2mm;
+            border-bottom: 1px dashed #000;
+            margin-bottom: 2mm;
         }
-        .brand { font-size: 12px; letter-spacing: 0.18em; font-weight: 700; color: #0f766e; }
-        h1 { margin: 6px 0 4px; font-size: 22px; }
-        .meta, .footer { font-size: 12px; color: #475569; line-height: 1.5; }
-        table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        th {
-            text-align: left;
-            padding: 8px 0;
-            border-bottom: 1px solid #e2e8f0;
-            color: #64748b;
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
+        .brand { font-size: 1.1em; font-weight: 700; letter-spacing: 0.05em; }
+        h1 { margin: 1mm 0; font-size: 1.05em; font-weight: 700; }
+        .meta, .footer { font-size: 0.92em; line-height: 1.5; }
+
+        .divider { border-top: 1px dashed #000; margin: 2mm 0; }
+
+        .items { margin-top: 1mm; }
+        .item-row { padding: 1.5mm 0; border-bottom: 1px dotted #999; }
+        .item-row:last-child { border-bottom: none; }
+        .item-name { font-weight: 700; font-size: 0.95em; }
+        .item-line {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.88em;
+            margin-top: 0.5mm;
         }
-        td { padding: 10px 0; vertical-align: top; border-bottom: 1px solid #f1f5f9; }
-        .right { text-align: right; white-space: nowrap; }
-        .item-name { font-weight: 700; }
-        .item-sku { font-size: 11px; color: #64748b; }
-        .summary { margin-top: 16px; padding-top: 12px; border-top: 1px dashed #cbd5e1; }
-        .summary-row { display: flex; justify-content: space-between; gap: 16px; font-size: 13px; margin: 6px 0; }
-        .summary-row.total { font-size: 18px; font-weight: 700; color: #0f172a; margin-top: 10px; }
-        @media print { body { padding: 0; } }
+
+        .summary { margin-top: 2mm; padding-top: 2mm; border-top: 1px dashed #000; }
+        .summary-row { display: flex; justify-content: space-between; gap: 8px; font-size: 0.95em; margin: 1mm 0; }
+        .summary-row.total { font-size: 1.15em; font-weight: 700; margin-top: 1.5mm; }
+
+        .refund-policy, .refunded-banner {
+            margin-top: 2mm;
+            padding-top: 2mm;
+            border-top: 1px dashed #000;
+            font-size: 0.85em;
+            text-align: center;
+        }
+        .refunded-banner { font-weight: 700; }
+
+        .footer { margin-top: 3mm; text-align: center; }
+
+        /* Screen-only preview chrome; hidden entirely when actually printing. */
+        @media screen {
+            body { background: #e2e8f0; padding: 16px 0; }
+            .receipt {
+                background: #fff;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+                min-height: 100px;
+            }
+        }
+        @media print {
+            body { background: #fff; padding: 0; }
+            .receipt { box-shadow: none; }
+        }
     </style>
 </head>
 <body>
@@ -56,52 +107,60 @@
             @if ($settings->address)
                 <div class="meta">{{ $settings->address }}</div>
             @endif
-            <div class="meta">Sale #{{ $sale->id }} · Bill Code: {{ $sale->bill_code }}</div>
-            <div class="meta">{{ $sale->created_at->timezone('Asia/Karachi')->format('j F Y, g:i A') }} PKT</div>
+            <div class="meta">Bill: {{ $sale->bill_code }}</div>
+            <div class="meta">{{ $sale->created_at->timezone('Asia/Karachi')->format('j M Y, g:i A') }} PKT</div>
         </div>
 
+        @if ($sale->is_refunded)
+            <div class="refunded-banner">*** REFUNDED ***</div>
+            <div class="divider"></div>
+        @endif
+
         <div class="meta">
-            Customer: {{ $sale->customer_name ?? 'Walk-in' }}
-            <br />Payment: {{ ucfirst($sale->payment_method) }}
+            Customer: {{ $sale->customer_name ?? 'Walk-in' }}<br />
+            Payment: {{ ucfirst($sale->payment_method) }}
             @if ($sale->notes)
                 <br />Notes: {{ $sale->notes }}
             @endif
         </div>
 
-        <table>
-            <thead>
-                <tr>
-                    <th>Item</th>
-                    <th class="right">Unit</th>
-                    <th class="right">Qty</th>
-                    <th class="right">Price</th>
-                    <th class="right">Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach ($sale->items as $item)
-                    <tr>
-                        <td>
-                            <div class="item-name">{{ $item->medicine->name ?? 'Unknown item' }}</div>
-                            <div class="item-sku">{{ $item->medicine->medicine_type ?? '' }}</div>
-                        </td>
-                        <td class="right">{{ $item->unit_type }}</td>
-                        <td class="right">{{ $item->quantity }}</td>
-                        <td class="right">{{ number_format($item->unit_price, 2) }}</td>
-                        <td class="right">{{ number_format($item->subtotal, 2) }}</td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
+        <div class="divider"></div>
+
+        <div class="items">
+            @foreach ($sale->items as $item)
+                <div class="item-row">
+                    <div class="item-name">{{ $item->medicine->name ?? 'Unknown item' }}</div>
+                    <div class="item-line">
+                        <span>{{ $item->quantity }} {{ $item->unit_type }} &times; {{ number_format($item->unit_price, 2) }}</span>
+                        <span>{{ number_format($item->subtotal, 2) }}</span>
+                    </div>
+                </div>
+            @endforeach
+        </div>
 
         <div class="summary">
             <div class="summary-row total">
-                <span>Grand Total</span>
+                <span>TOTAL</span>
                 <span>{{ number_format($sale->total_amount, 2) }}</span>
             </div>
         </div>
 
-        <div class="footer" style="margin-top: 18px; text-align: center;">
+        @if ($settings->refunds_enabled && $settings->refund_window_days && !$sale->is_refunded)
+            <div class="refund-policy">
+                Returns accepted within {{ $settings->refund_window_days }} {{ $settings->refund_window_days == 1 ? 'day' : 'days' }} of purchase with this receipt.
+            </div>
+        @endif
+
+        @if ($sale->is_refunded)
+            <div class="refund-policy">
+                Refunded {{ $sale->refunded_at->timezone('Asia/Karachi')->format('j M Y, g:i A') }} PKT
+                @if ($sale->refund_reason)
+                    <br />Reason: {{ $sale->refund_reason }}
+                @endif
+            </div>
+        @endif
+
+        <div class="footer">
             Thank you for shopping with {{ $settings->pharmacy_name }}.
         </div>
     </div>

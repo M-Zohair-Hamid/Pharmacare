@@ -20,11 +20,14 @@ class Sale extends Model
         'total_amount',
         'payment_method',
         'notes',
+        'refunded_at',
+        'refund_reason',
     ];
 
     protected $casts = [
         'total_amount' => 'decimal:2',
         'created_at' => 'datetime',
+        'refunded_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -63,5 +66,32 @@ class Sale extends Model
     public function items(): HasMany
     {
         return $this->hasMany(SaleItem::class);
+    }
+
+    public function getIsRefundedAttribute(): bool
+    {
+        return $this->refunded_at !== null;
+    }
+
+    /**
+     * A sale can be refunded when refunds are enabled pharmacy-wide, the sale
+     * hasn't already been refunded, and it falls within the configured
+     * refund window (days since the sale was made).
+     */
+    public function isRefundEligible(): bool
+    {
+        if ($this->is_refunded) {
+            return false;
+        }
+
+        $settings = Setting::current();
+
+        if (!$settings->refunds_enabled || !$settings->refund_window_days) {
+            return false;
+        }
+
+        $deadline = $this->created_at->copy()->addDays($settings->refund_window_days)->endOfDay();
+
+        return now('Asia/Karachi')->lessThanOrEqualTo($deadline);
     }
 }
