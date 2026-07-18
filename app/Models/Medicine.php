@@ -19,6 +19,8 @@ class Medicine extends Model
         'generic_name',
         'category',
         'medicine_type',
+        'tablets_per_box',
+        'box_price',
         'manufacturer',
         'unit_price',
         'cost_price',
@@ -30,6 +32,8 @@ class Medicine extends Model
     protected $casts = [
         'unit_price' => 'decimal:2',
         'cost_price' => 'decimal:2',
+        'box_price' => 'decimal:2',
+        'tablets_per_box' => 'integer',
         'quantity' => 'integer',
         'expiry_date' => 'datetime',
     ];
@@ -42,6 +46,11 @@ class Medicine extends Model
     public function purchaseItems(): HasMany
     {
         return $this->hasMany(PurchaseItem::class);
+    }
+
+    public function batches(): HasMany
+    {
+        return $this->hasMany(MedicineBatch::class);
     }
 
     /** Mirrors utils.ts stockStatus(), using the pharmacy-wide low stock threshold from Settings. */

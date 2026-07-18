@@ -198,7 +198,7 @@
                     </div>
                     <div>
                         <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Medicine Type / Unit</label>
-                        <select wire:model="medicineType" class="w-full cursor-pointer rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                        <select wire:model.live="medicineType" class="w-full cursor-pointer rounded-xl border border-slate-200 px-3 py-2 text-sm">
                             @foreach ($medicineTypes as $t)
                                 <option value="{{ $t }}">{{ $t }}</option>
                             @endforeach
@@ -211,6 +211,26 @@
                         <input type="text" wire:model="category_field" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
                         @error('category_field') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
                     </div>
+                    @if ($medicineType === 'Tablet')
+                        <div class="sm:col-span-2 rounded-2xl border border-teal-100 bg-teal-50/50 p-4">
+                            <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-teal-700">Box pricing</p>
+                            <div class="grid gap-4 sm:grid-cols-2">
+                                <div>
+                                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Tablets per Box</label>
+                                    <input type="number" min="1" step="1" wire:model.live="tabletsPerBox" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" />
+                                    @error('tabletsPerBox') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
+                                </div>
+                                <div>
+                                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Box Price</label>
+                                    <input type="number" min="0" step="0.01" wire:model.live="boxPrice" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" />
+                                    @error('boxPrice') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
+                                </div>
+                            </div>
+                            <p class="mt-2 text-xs text-teal-700">
+                                Unit price per tablet is calculated automatically: box price ÷ tablets per box.
+                            </p>
+                        </div>
+                    @endif
                     <div>
                         <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Manufacturer</label>
                         <input type="text" wire:model="manufacturer" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
@@ -219,7 +239,14 @@
                         <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                             Unit Price <span class="normal-case text-slate-400">(per {{ strtolower($medicineType) }})</span>
                         </label>
-                        <input type="number" step="0.01" wire:model="unitPrice" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                        <input
+                            type="number" step="0.01" wire:model="unitPrice"
+                            @if ($medicineType === 'Tablet') readonly @endif
+                            class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm {{ $medicineType === 'Tablet' ? 'bg-slate-50 text-slate-500' : '' }}"
+                        />
+                        @if ($medicineType === 'Tablet')
+                            <p class="mt-1 text-xs text-slate-400">Auto-calculated from box price ÷ tablets per box.</p>
+                        @endif
                         @error('unitPrice') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
                     </div>
                     <div>
@@ -242,6 +269,88 @@
                         <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Description</label>
                         <textarea wire:model="description" rows="3" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"></textarea>
                     </div>
+
+                    @if ($editingId)
+                        <div class="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                            <div class="flex items-center justify-between">
+                                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Stock Batches</p>
+                                @if (!$showBatchForm)
+                                    <button
+                                        type="button"
+                                        wire:click="openBatchForm"
+                                        class="cursor-pointer rounded-xl border border-teal-200 bg-white px-3 py-1.5 text-xs font-medium text-teal-700 transition-colors duration-150 hover:bg-teal-50"
+                                    >+ Record New Batch</button>
+                                @endif
+                            </div>
+
+                            @if ($showBatchForm)
+                                <div wire:key="batch-form" class="mt-3 grid gap-3 rounded-xl border border-teal-100 bg-white p-3 sm:grid-cols-2">
+                                    <div class="sm:col-span-2">
+                                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Batch Number <span class="normal-case text-slate-400">(optional)</span></label>
+                                        <input type="text" wire:model="batchNumber" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                                        @error('batchNumber') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
+                                    </div>
+                                    <div>
+                                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Quantity</label>
+                                        <input type="number" min="1" wire:model="batchQuantity" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                                        @error('batchQuantity') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
+                                    </div>
+                                    <div>
+                                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Batch Received Date</label>
+                                        <input type="date" wire:model="batchReceivedDate" max="{{ now()->format('Y-m-d') }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                                        @error('batchReceivedDate') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
+                                    </div>
+                                    <div class="sm:col-span-2">
+                                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Batch Expiry Date</label>
+                                        <input type="date" wire:model="batchExpiryDate" min="{{ now()->addDay()->format('Y-m-d') }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                                        @error('batchExpiryDate') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
+                                    </div>
+                                    <div class="flex justify-end gap-2 sm:col-span-2">
+                                        <button type="button" wire:click="cancelBatchForm" class="cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-50">Cancel</button>
+                                        <button type="button" wire:click="saveBatch" class="cursor-pointer rounded-xl bg-teal-600 px-3 py-1.5 text-xs font-medium text-white transition-colors duration-150 hover:bg-teal-700">Save Batch</button>
+                                    </div>
+                                </div>
+                            @endif
+
+                            @if ($editingMedicineBatches->count() > 0)
+                                <div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                                    <table class="min-w-full text-left text-xs">
+                                        <thead>
+                                            <tr class="border-b border-slate-100 bg-slate-50">
+                                                <th class="px-3 py-2 font-semibold uppercase tracking-wide text-slate-500">Batch #</th>
+                                                <th class="px-3 py-2 font-semibold uppercase tracking-wide text-slate-500">Qty</th>
+                                                <th class="px-3 py-2 font-semibold uppercase tracking-wide text-slate-500">Received</th>
+                                                <th class="px-3 py-2 font-semibold uppercase tracking-wide text-slate-500">Expiry</th>
+                                                <th class="px-3 py-2"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach ($editingMedicineBatches as $batch)
+                                                <tr wire:key="batch-{{ $batch->id }}" class="border-b border-slate-50 last:border-0">
+                                                    <td class="px-3 py-2 text-slate-700">{{ $batch->batch_number ?? '—' }}</td>
+                                                    <td class="px-3 py-2 text-slate-700">{{ $batch->quantity }}</td>
+                                                    <td class="px-3 py-2 text-slate-700">{{ $batch->received_date->format('M j, Y') }}</td>
+                                                    <td class="px-3 py-2 {{ $batch->is_expired ? 'text-rose-600 font-medium' : 'text-slate-700' }}">
+                                                        {{ $batch->expiry_date->format('M j, Y') }}
+                                                    </td>
+                                                    <td class="px-3 py-2 text-right">
+                                                        <button
+                                                            type="button"
+                                                            wire:click="deleteBatch({{ $batch->id }})"
+                                                            wire:confirm="Delete this batch record?"
+                                                            class="cursor-pointer text-rose-600 hover:text-rose-700"
+                                                        >Delete</button>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @elseif (!$showBatchForm)
+                                <p class="mt-3 text-xs text-slate-400">No batches recorded yet.</p>
+                            @endif
+                        </div>
+                    @endif
                     <div class="flex justify-end gap-2 sm:col-span-2">
                         <button type="button" wire:click="closeModal" class="cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-50">Cancel</button>
                         <button type="submit" class="cursor-pointer rounded-xl bg-teal-600 px-4 py-2 text-sm font-medium text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-teal-700 hover:shadow-md active:translate-y-0">

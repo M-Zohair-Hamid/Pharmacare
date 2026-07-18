@@ -3,6 +3,7 @@
 namespace App\Livewire\Medicines;
 
 use App\Models\Medicine;
+use App\Models\MedicineBatch;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -40,11 +41,22 @@ class Index extends Component
     public ?string $expiryDate = null;
     public string $description = '';
 
+    // Tablet-specific pricing: box price ÷ tablets per box = unit price per tablet.
+    public ?string $tabletsPerBox = null;
+    public ?string $boxPrice = null;
+
     // Bulk selection
     public array $selected = [];
     public bool $selectAll = false;
 
     public array $medicineTypes = Medicine::TYPES;
+
+    // Batch management (shown inside the Edit modal)
+    public bool $showBatchForm = false;
+    public string $batchNumber = '';
+    public string $batchQuantity = '';
+    public ?string $batchReceivedDate = null;
+    public ?string $batchExpiryDate = null;
 
     protected function rules(): array
     {
@@ -59,6 +71,12 @@ class Index extends Component
             'quantity' => 'required|integer|min:0',
             'expiryDate' => 'nullable|date|after_or_equal:today',
             'description' => 'nullable|string',
+            'tabletsPerBox' => $this->medicineType === 'Tablet'
+                ? 'required|integer|min:1'
+                : 'nullable|integer|min:1',
+            'boxPrice' => $this->medicineType === 'Tablet'
+                ? 'required|numeric|min:0.01'
+                : 'nullable|numeric|min:0',
         ];
     }
 
@@ -66,7 +84,41 @@ class Index extends Component
     {
         return [
             'expiryDate.after_or_equal' => 'This medicine is already expired. Expired medicines cannot be added or sold.',
+            'tabletsPerBox.required' => 'Tablets per box is required for tablet medicines.',
+            'boxPrice.required' => 'Box price is required for tablet medicines.',
         ];
+    }
+
+    public function updatedMedicineType(): void
+    {
+        if ($this->medicineType !== 'Tablet') {
+            $this->tabletsPerBox = null;
+            $this->boxPrice = null;
+        }
+    }
+
+    public function updatedTabletsPerBox(): void
+    {
+        $this->recalculateUnitPriceFromBox();
+    }
+
+    public function updatedBoxPrice(): void
+    {
+        $this->recalculateUnitPriceFromBox();
+    }
+
+    protected function recalculateUnitPriceFromBox(): void
+    {
+        if ($this->medicineType !== 'Tablet') {
+            return;
+        }
+
+        $tabletsPerBox = (int) $this->tabletsPerBox;
+        $boxPrice = (float) $this->boxPrice;
+
+        if ($tabletsPerBox > 0 && $boxPrice > 0) {
+            $this->unitPrice = number_format($boxPrice / $tabletsPerBox, 2, '.', '');
+        }
     }
 
     public function updatingQ(): void
@@ -118,6 +170,10 @@ class Index extends Component
         $this->quantity = $medicine->quantity;
         $this->expiryDate = $medicine->expiry_date?->format('Y-m-d');
         $this->description = $medicine->description ?? '';
+        $this->tabletsPerBox = $medicine->tablets_per_box !== null ? (string) $medicine->tablets_per_box : null;
+        $this->boxPrice = $medicine->box_price !== null ? (string) $medicine->box_price : null;
+        $this->showBatchForm = false;
+        $this->resetBatchForm();
         $this->showModal = true;
     }
 
@@ -142,6 +198,8 @@ class Index extends Component
             'quantity' => $validated['quantity'],
             'expiry_date' => $validated['expiryDate'] ?: null,
             'description' => $validated['description'] ?: null,
+            'tablets_per_box' => $validated['medicineType'] === 'Tablet' ? $validated['tabletsPerBox'] : null,
+            'box_price' => $validated['medicineType'] === 'Tablet' ? $validated['boxPrice'] : null,
         ];
 
         if ($this->editingId) {
@@ -214,19 +272,95 @@ class Index extends Component
         $this->reset([
             'editingId', 'name', 'genericName', 'manufacturer',
             'unitPrice', 'costPrice', 'quantity',
-            'expiryDate', 'description',
+            'expiryDate', 'description', 'tabletsPerBox', 'boxPrice',
         ]);
         $this->category_field = 'General';
         $this->medicineType = 'Tablet';
         $this->unitPrice = '0';
         $this->costPrice = '0';
         $this->resetValidation();
+        $this->resetBatchForm();
+        $this->showBatchForm = false;
     }
 
     public function closeModal(): void
     {
         $this->showModal = false;
         $this->resetForm();
+    }
+
+    /*
+    |--------------------------------------------------------------------
+    | Batch management — record new stock batches (expiry, received date,
+    | quantity) for the medicine currently being edited. Batches are kept
+    | separately from the medicine's overall quantity; the specific batch
+    | to draw from is chosen later at billing time.
+    |--------------------------------------------------------------------
+    */
+
+    public function openBatchForm(): void
+    {
+        $this->resetBatchForm();
+        $this->showBatchForm = true;
+    }
+
+    public function cancelBatchForm(): void
+    {
+        $this->resetBatchForm();
+        $this->showBatchForm = false;
+    }
+
+    public function resetBatchForm(): void
+    {
+        $this->reset(['batchNumber', 'batchQuantity', 'batchReceivedDate', 'batchExpiryDate']);
+        $this->resetValidation(['batchNumber', 'batchQuantity', 'batchReceivedDate', 'batchExpiryDate']);
+    }
+
+    protected function batchRules(): array
+    {
+        return [
+            'batchNumber' => 'nullable|string|max:100',
+            'batchQuantity' => 'required|integer|min:1',
+            'batchReceivedDate' => 'required|date|before_or_equal:today',
+            'batchExpiryDate' => 'required|date|after:today',
+        ];
+    }
+
+    protected function batchMessages(): array
+    {
+        return [
+            'batchReceivedDate.before_or_equal' => 'Batch received date cannot be in the future.',
+            'batchExpiryDate.after' => 'Batch expiry date must be in the future.',
+        ];
+    }
+
+    public function saveBatch(): void
+    {
+        if (!$this->editingId) {
+            session()->flash('error', 'Save the medicine before recording a batch.');
+            return;
+        }
+
+        $validated = $this->validate($this->batchRules(), $this->batchMessages());
+
+        MedicineBatch::create([
+            'medicine_id' => $this->editingId,
+            'batch_number' => $validated['batchNumber'] ?: null,
+            'quantity' => $validated['batchQuantity'],
+            'received_date' => $validated['batchReceivedDate'],
+            'expiry_date' => $validated['batchExpiryDate'],
+        ]);
+
+        session()->flash('success', 'Batch recorded successfully.');
+        $this->resetBatchForm();
+        $this->showBatchForm = false;
+    }
+
+    public function deleteBatch(int $batchId): void
+    {
+        $batch = MedicineBatch::where('medicine_id', $this->editingId)->findOrFail($batchId);
+        $batch->delete();
+        session()->flash('success', 'Batch deleted.');
     }
 
     public function render()
@@ -264,11 +398,16 @@ class Index extends Component
         $categories = Medicine::query()->distinct()->orderBy('category')->pluck('category');
         $trashed = Medicine::onlyTrashed()->orderByDesc('deleted_at')->get();
 
+        $editingMedicineBatches = $this->editingId
+            ? MedicineBatch::where('medicine_id', $this->editingId)->orderByDesc('expiry_date')->get()
+            : collect();
+
         return view('livewire.medicines.index', [
             'medicines' => $medicines,
             'categories' => $categories,
             'trashed' => $trashed,
             'lowStockThreshold' => $threshold,
+            'editingMedicineBatches' => $editingMedicineBatches,
         ]);
     }
 }
