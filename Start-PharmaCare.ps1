@@ -1,5 +1,7 @@
 ﻿# Starts the PharmaCare server hidden, waits for it to respond, opens the browser.
-$ProjectRoot = "C:\Users\WDAGUtilityAccount\Desktop\pharmacare-laravel"
+# Uses $PSScriptRoot (this script's own folder) so it keeps working even if
+# the whole project folder gets moved or copied to a different path/client PC.
+$ProjectRoot = $PSScriptRoot
 Set-Location $ProjectRoot
 
 $port = 8000

@@ -2,7 +2,7 @@
     <div class="mb-6">
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">Billing History</h1>
         <p class="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
-            Full billing history, all time — searchable by date or bill code. Times shown in Pakistan Standard Time (PKT).
+            Full billing history, All-time searchable by date or bill code. Times shown in Pakistan Standard Time (PKT).
         </p>
     </div>
 
