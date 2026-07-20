@@ -30,4 +30,13 @@ class MedicineBatch extends Model
     {
         return $this->expiry_date !== null && $this->expiry_date->isPast();
     }
+
+    public function getIsExpiringSoonAttribute(): bool
+    {
+        if ($this->expiry_date === null || $this->is_expired) {
+            return false;
+        }
+
+        return \Carbon\Carbon::parse($this->expiry_date)->lte(now()->addDays(30));
+    }
 }

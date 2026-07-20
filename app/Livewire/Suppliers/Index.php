@@ -29,6 +29,9 @@ class Index extends Component
     public array $selected = [];
     public bool $selectAll = false;
 
+    // Infinite scroll page size, see Medicines\Index for the same pattern.
+    public int $perPage = 15;
+
     protected function rules(): array
     {
         return [
@@ -44,6 +47,12 @@ class Index extends Component
     public function updatingQ(): void
     {
         $this->resetPage();
+        $this->perPage = 15;
+    }
+
+    public function loadMore(): void
+    {
+        $this->perPage += 15;
     }
 
     public function updatedSelectAll($value): void
@@ -102,21 +111,9 @@ class Index extends Component
         Supplier::findOrFail($id)->delete();
     }
 
-    public function forceDelete(int $id): void
-    {
-        Supplier::withTrashed()->findOrFail($id)->forceDelete();
-    }
-
     public function bulkDelete(): void
     {
         Supplier::whereIn('id', $this->selected)->delete();
-        $this->selected = [];
-        $this->selectAll = false;
-    }
-
-    public function bulkForceDelete(): void
-    {
-        Supplier::withTrashed()->whereIn('id', $this->selected)->forceDelete();
         $this->selected = [];
         $this->selectAll = false;
     }
@@ -147,8 +144,7 @@ class Index extends Component
         }
 
         return view('livewire.suppliers.index', [
-            'suppliers' => $query->orderBy('name')->paginate(15),
-            'trashed' => Supplier::onlyTrashed()->orderByDesc('deleted_at')->get(),
+            'suppliers' => $query->orderBy('name')->paginate($this->perPage),
         ]);
     }
 }

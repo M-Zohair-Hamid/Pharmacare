@@ -19,15 +19,9 @@
                 <button
                     type="button"
                     wire:click="bulkDelete"
-                    wire:confirm="Soft delete {{ count($selected) }} supplier(s)? They can be restored or force-deleted later."
+                    wire:confirm="Soft delete {{ count($selected) }} supplier(s)? They can be restored from the Bin later."
                     class="cursor-pointer rounded-xl border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-800 transition-colors duration-150 hover:bg-amber-200"
                 >Delete selected</button>
-                <button
-                    type="button"
-                    wire:click="bulkForceDelete"
-                    wire:confirm="Permanently delete {{ count($selected) }} supplier(s)? This cannot be undone."
-                    class="cursor-pointer rounded-xl border border-rose-300 bg-rose-100 px-3 py-1.5 text-xs font-medium text-rose-800 transition-colors duration-150 hover:bg-rose-200"
-                >Force delete selected</button>
             </div>
         </div>
     @endif
@@ -69,42 +63,21 @@
                 </tbody>
             </table>
         </div>
-        <div class="border-t border-slate-100 px-4 py-3">{{ $suppliers->links() }}</div>
-    </div>
-
-    @if ($trashed->count() > 0)
-        <div class="mt-8">
-            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Trash ({{ $trashed->count() }})</h2>
-            <div class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-                <div class="overflow-x-auto">
-                    <table class="min-w-full text-left text-sm">
-                        <thead>
-                            <tr class="border-b border-slate-100">
-                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Name</th>
-                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Deleted at</th>
-                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($trashed as $supplier)
-                                <tr wire:key="trashed-sup-{{ $supplier->id }}" class="border-b border-slate-50 last:border-0">
-                                    <td class="px-4 py-3 align-middle text-slate-700">{{ $supplier->name }}</td>
-                                    <td class="px-4 py-3 align-middle text-slate-700">{{ $supplier->deleted_at?->format('M j, Y g:i A') }}</td>
-                                    <td class="px-4 py-3 align-middle text-right">
-                                        <button
-                                            wire:click="forceDelete({{ $supplier->id }})"
-                                            wire:confirm="Permanently delete {{ $supplier->name }}? This cannot be undone."
-                                            class="cursor-pointer text-sm font-medium text-rose-600 transition-colors duration-150 hover:text-rose-700"
-                                        >Force delete</button>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+        <div class="border-t border-slate-100 px-4 py-4 text-center">
+            @if ($suppliers->hasMorePages())
+                <div wire:intersect.margin.200px="loadMore" wire:loading.remove wire:target="loadMore" class="h-1"></div>
+                <div wire:loading wire:target="loadMore" class="flex items-center justify-center gap-2 text-xs text-slate-400">
+                    <svg class="h-4 w-4 animate-spin text-teal-600" viewBox="0 0 24 24" fill="none">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    Loading more…
                 </div>
-            </div>
+            @else
+                <p class="text-xs text-slate-400">Showing all {{ $suppliers->total() }} suppliers.</p>
+            @endif
         </div>
-    @endif
+    </div>
 
     @if ($showModal)
         <div class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 p-4 sm:items-center">

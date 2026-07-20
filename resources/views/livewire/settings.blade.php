@@ -86,4 +86,16 @@
             </div>
         </form>
     </div>
+
+    <div class="mt-6 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+        <div class="flex items-center justify-between gap-4">
+            <div>
+                <p class="text-sm font-semibold text-slate-900">Bin</p>
+                <p class="mt-1 text-xs text-slate-500">View and restore deleted medicines, sales, purchases, suppliers, and customers.</p>
+            </div>
+            <a href="{{ route('bin.index') }}" class="shrink-0 cursor-pointer rounded-xl bg-slate-800 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:bg-slate-900 hover:shadow-md active:translate-y-0">
+                Open Bin
+            </a>
+        </div>
+    </div>
 </div>

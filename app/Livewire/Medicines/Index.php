@@ -26,6 +26,11 @@ class Index extends Component
     #[Url]
     public string $type = '';
 
+    // Infinite scroll: how many rows are currently loaded/shown. Bumped by
+    // loadMore() as the user scrolls; resets to the base page size whenever
+    // a filter changes so a new search starts from the top.
+    public int $perPage = 15;
+
     public bool $showModal = false;
     public ?int $editingId = null;
 
@@ -69,7 +74,7 @@ class Index extends Component
             'unitPrice' => 'required|numeric|min:0',
             'costPrice' => 'required|numeric|min:0',
             'quantity' => 'required|integer|min:0',
-            'expiryDate' => 'nullable|date|after_or_equal:today',
+            'expiryDate' => 'required|date|after_or_equal:today',
             'description' => 'nullable|string',
             'tabletsPerBox' => $this->medicineType === 'Tablet'
                 ? 'required|integer|min:1'
@@ -124,21 +129,35 @@ class Index extends Component
     public function updatingQ(): void
     {
         $this->resetPage();
+        $this->perPage = 15;
     }
 
     public function updatingCategory(): void
     {
         $this->resetPage();
+        $this->perPage = 15;
     }
 
     public function updatingStock(): void
     {
         $this->resetPage();
+        $this->perPage = 15;
     }
 
     public function updatingType(): void
     {
         $this->resetPage();
+        $this->perPage = 15;
+    }
+
+    /**
+     * Infinite scroll: called from the browser when the sentinel element at
+     * the bottom of the list scrolls into view. Simply grows the page size
+     * and re-renders — Livewire's paginator naturally returns more rows.
+     */
+    public function loadMore(): void
+    {
+        $this->perPage += 15;
     }
 
     public function updatedSelectAll($value): void
@@ -217,21 +236,6 @@ class Index extends Component
         Medicine::findOrFail($id)->delete();
     }
 
-    /**
-     * Force delete permanently removes the medicine and any sale/purchase line
-     * items pointing at it (medicine_id FKs are cascadeOnDelete at the DB level),
-     * so this can never crash with a foreign key violation.
-     */
-    public function forceDelete(int $id): void
-    {
-        try {
-            Medicine::withTrashed()->findOrFail($id)->forceDelete();
-            session()->flash('success', 'Medicine permanently deleted.');
-        } catch (\Throwable $e) {
-            session()->flash('error', 'Could not permanently delete this medicine: ' . $e->getMessage());
-        }
-    }
-
     public function bulkDelete(): void
     {
         if (empty($this->selected)) {
@@ -246,24 +250,6 @@ class Index extends Component
             $this->selectAll = false;
         } catch (\Throwable $e) {
             session()->flash('error', 'Could not delete selected medicines: ' . $e->getMessage());
-        }
-    }
-
-    public function bulkForceDelete(): void
-    {
-        if (empty($this->selected)) {
-            session()->flash('error', 'No medicines selected.');
-            return;
-        }
-
-        try {
-            $count = count($this->selected);
-            Medicine::withTrashed()->whereIn('id', $this->selected)->forceDelete();
-            session()->flash('success', $count . ' medicine(s) permanently deleted.');
-            $this->selected = [];
-            $this->selectAll = false;
-        } catch (\Throwable $e) {
-            session()->flash('error', 'Could not permanently delete selected medicines: ' . $e->getMessage());
         }
     }
 
@@ -394,18 +380,16 @@ class Index extends Component
             $query->where('quantity', '>', $threshold);
         }
 
-        $medicines = $query->orderBy('name')->paginate(15);
+        $medicines = $query->orderBy('name')->paginate($this->perPage);
         $categories = Medicine::query()->distinct()->orderBy('category')->pluck('category');
-        $trashed = Medicine::onlyTrashed()->orderByDesc('deleted_at')->get();
 
         $editingMedicineBatches = $this->editingId
-            ? MedicineBatch::where('medicine_id', $this->editingId)->orderByDesc('expiry_date')->get()
+            ? MedicineBatch::where('medicine_id', $this->editingId)->orderBy('expiry_date')->get()
             : collect();
 
         return view('livewire.medicines.index', [
             'medicines' => $medicines,
             'categories' => $categories,
-            'trashed' => $trashed,
             'lowStockThreshold' => $threshold,
             'editingMedicineBatches' => $editingMedicineBatches,
         ]);

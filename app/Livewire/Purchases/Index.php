@@ -29,6 +29,14 @@ class Index extends Component
     public array $selected = [];
     public bool $selectAll = false;
 
+    // Infinite scroll page size, see Medicines\Index for the same pattern.
+    public int $perPage = 15;
+
+    public function loadMore(): void
+    {
+        $this->perPage += 15;
+    }
+
     public function addItem(): void
     {
         $this->validate([
@@ -132,16 +140,6 @@ class Index extends Component
         Purchase::findOrFail($id)->delete();
     }
 
-    public function forceDelete(int $id): void
-    {
-        try {
-            Purchase::withTrashed()->findOrFail($id)->forceDelete();
-            session()->flash('success', 'Purchase permanently deleted.');
-        } catch (\Throwable $e) {
-            session()->flash('error', 'Could not permanently delete this purchase: ' . $e->getMessage());
-        }
-    }
-
     public function bulkDelete(): void
     {
         if (empty($this->selected)) {
@@ -159,37 +157,18 @@ class Index extends Component
         }
     }
 
-    public function bulkForceDelete(): void
-    {
-        if (empty($this->selected)) {
-            session()->flash('error', 'No purchases selected.');
-            return;
-        }
-
-        try {
-            $count = count($this->selected);
-            Purchase::withTrashed()->whereIn('id', $this->selected)->forceDelete();
-            session()->flash('success', $count . ' purchase(s) permanently deleted.');
-            $this->selected = [];
-            $this->selectAll = false;
-        } catch (\Throwable $e) {
-            session()->flash('error', 'Could not permanently delete selected purchases: ' . $e->getMessage());
-        }
-    }
-
     public function render()
     {
         $purchases = Purchase::query()
             ->with('supplier')
             ->withCount('items')
             ->orderByDesc('created_at')
-            ->paginate(15);
+            ->paginate($this->perPage);
 
         return view('livewire.purchases.index', [
             'purchases' => $purchases,
             'suppliers' => Supplier::orderBy('name')->get(),
             'medicines' => Medicine::orderBy('name')->get(),
-            'trashed' => Purchase::onlyTrashed()->with('supplier')->orderByDesc('deleted_at')->get(),
         ]);
     }
 }

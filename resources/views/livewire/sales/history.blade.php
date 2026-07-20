@@ -2,7 +2,7 @@
     <div class="mb-6">
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">Billing History</h1>
         <p class="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
-            Full billing history, All-time searchable by date or bill code. Times shown in Pakistan Standard Time (PKT).
+            Full billing history, all time — searchable by date or bill code. Times shown in Pakistan Standard Time (PKT).
         </p>
     </div>
 
@@ -37,15 +37,9 @@
                 <button
                     type="button"
                     wire:click="bulkDelete"
-                    wire:confirm="Soft delete {{ count($selected) }} sale(s)? They can be restored or force-deleted later."
+                    wire:confirm="Soft delete {{ count($selected) }} sale(s)? They can be restored from the Bin later."
                     class="cursor-pointer rounded-xl border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-800 transition-colors duration-150 hover:bg-amber-200"
                 >Delete selected</button>
-                <button
-                    type="button"
-                    wire:click="bulkForceDelete"
-                    wire:confirm="Permanently delete {{ count($selected) }} sale(s)? This cannot be undone."
-                    class="cursor-pointer rounded-xl border border-rose-300 bg-rose-100 px-3 py-1.5 text-xs font-medium text-rose-800 transition-colors duration-150 hover:bg-rose-200"
-                >Force delete selected</button>
             </div>
         </div>
     @endif
@@ -104,44 +98,21 @@
                 </tbody>
             </table>
         </div>
-        <div class="border-t border-slate-100 px-4 py-3">{{ $sales->links() }}</div>
-    </div>
-
-    @if ($trashed->count() > 0)
-        <div class="mt-8">
-            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Trash ({{ $trashed->count() }})</h2>
-            <div class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-                <div class="overflow-x-auto">
-                    <table class="min-w-full text-left text-sm">
-                        <thead>
-                            <tr class="border-b border-slate-100">
-                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Bill Code</th>
-                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Customer</th>
-                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Deleted at (PKT)</th>
-                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($trashed as $sale)
-                                <tr wire:key="trashed-sale-{{ $sale->id }}" class="border-b border-slate-50 last:border-0">
-                                    <td class="px-4 py-3 align-middle font-mono text-sm">{{ $sale->bill_code }}</td>
-                                    <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->customer_name ?? 'Walk-in' }}</td>
-                                    <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->deleted_at?->timezone('Asia/Karachi')->format('j M Y, g:i A') }} PKT</td>
-                                    <td class="px-4 py-3 align-middle text-right">
-                                        <button
-                                            wire:click="forceDelete({{ $sale->id }})"
-                                            wire:confirm="Permanently delete this sale? This cannot be undone."
-                                            class="cursor-pointer text-sm font-medium text-rose-600 transition-colors duration-150 hover:text-rose-700"
-                                        >Force delete</button>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+        <div class="border-t border-slate-100 px-4 py-4 text-center">
+            @if ($sales->hasMorePages())
+                <div wire:intersect.margin.200px="loadMore" wire:loading.remove wire:target="loadMore" class="h-1"></div>
+                <div wire:loading wire:target="loadMore" class="flex items-center justify-center gap-2 text-xs text-slate-400">
+                    <svg class="h-4 w-4 animate-spin text-teal-600" viewBox="0 0 24 24" fill="none">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    Loading more…
                 </div>
-            </div>
+            @else
+                <p class="text-xs text-slate-400">Showing all {{ $sales->total() }} sales.</p>
+            @endif
         </div>
-    @endif
+    </div>
 
     {{-- Refund confirmation modal --}}
     @if ($showRefundModal)

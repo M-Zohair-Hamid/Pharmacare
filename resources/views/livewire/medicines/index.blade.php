@@ -56,15 +56,9 @@
                 <button
                     type="button"
                     wire:click="bulkDelete"
-                    wire:confirm="Soft delete {{ count($selected) }} medicine(s)? They can be restored or force-deleted later."
+                    wire:confirm="Soft delete {{ count($selected) }} medicine(s)? They can be restored from the Bin later."
                     class="cursor-pointer rounded-xl border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-800 transition-colors duration-150 hover:bg-amber-200"
                 >Delete selected</button>
-                <button
-                    type="button"
-                    wire:click="bulkForceDelete"
-                    wire:confirm="Permanently delete {{ count($selected) }} medicine(s)? This cannot be undone."
-                    class="cursor-pointer rounded-xl border border-rose-300 bg-rose-100 px-3 py-1.5 text-xs font-medium text-rose-800 transition-colors duration-150 hover:bg-rose-200"
-                >Force delete selected</button>
             </div>
         </div>
     @endif
@@ -122,7 +116,7 @@
                                 <button wire:click="openEdit({{ $medicine->id }})" class="cursor-pointer text-sm font-medium text-teal-700 transition-colors duration-150 hover:text-teal-800">Edit</button>
                                 <button
                                     wire:click="delete({{ $medicine->id }})"
-                                    wire:confirm="Delete {{ $medicine->name }}? It can be restored from Trash or permanently removed."
+                                    wire:confirm="Delete {{ $medicine->name }}? It can be restored from the Bin or permanently removed."
                                     class="ml-3 cursor-pointer text-sm font-medium text-rose-600 transition-colors duration-150 hover:text-rose-700"
                                 >Delete</button>
                             </td>
@@ -135,47 +129,21 @@
                 </tbody>
             </table>
         </div>
-        <div class="border-t border-slate-100 px-4 py-3">
-            {{ $medicines->links() }}
+        <div class="border-t border-slate-100 px-4 py-4 text-center">
+            @if ($medicines->hasMorePages())
+                <div wire:intersect.margin.200px="loadMore" wire:loading.remove wire:target="loadMore" class="h-1"></div>
+                <div wire:loading wire:target="loadMore" class="flex items-center justify-center gap-2 text-xs text-slate-400">
+                    <svg class="h-4 w-4 animate-spin text-teal-600" viewBox="0 0 24 24" fill="none">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    Loading more…
+                </div>
+            @else
+                <p class="text-xs text-slate-400">Showing all {{ $medicines->total() }} medicines.</p>
+            @endif
         </div>
     </div>
-
-    {{-- Trash / soft-deleted medicines --}}
-    @if ($trashed->count() > 0)
-        <div class="mt-8">
-            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Trash ({{ $trashed->count() }})</h2>
-            <div class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-                <div class="overflow-x-auto">
-                    <table class="min-w-full text-left text-sm">
-                        <thead>
-                            <tr class="border-b border-slate-100">
-                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Medicine</th>
-                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Type</th>
-                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Deleted at</th>
-                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($trashed as $medicine)
-                                <tr wire:key="trashed-{{ $medicine->id }}" class="border-b border-slate-50 last:border-0">
-                                    <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->name }}</td>
-                                    <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->medicine_type }}</td>
-                                    <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->deleted_at?->format('M j, Y g:i A') }}</td>
-                                    <td class="px-4 py-3 align-middle text-right">
-                                        <button
-                                            wire:click="forceDelete({{ $medicine->id }})"
-                                            wire:confirm="Permanently delete {{ $medicine->name }}? This cannot be undone and will also remove its sale/purchase history."
-                                            class="cursor-pointer text-sm font-medium text-rose-600 transition-colors duration-150 hover:text-rose-700"
-                                        >Force delete</button>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    @endif
 
     {{-- Create/Edit modal --}}
     @if ($showModal)
@@ -260,8 +228,9 @@
                         @error('costPrice') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
                     </div>
                     <div>
-                        <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Expiry Date</label>
-                        <input type="date" wire:model="expiryDate" min="{{ now()->format('Y-m-d') }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Expiry Date <span class="text-rose-600">*</span></label>
+                        <input type="date" wire:model="expiryDate" min="{{ now()->format('Y-m-d') }}" required class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
                         @error('expiryDate') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
                     </div>
                     <div class="sm:col-span-2 lg:col-span-3">
@@ -329,8 +298,13 @@
                                                     <td class="px-3 py-2 text-slate-700">{{ $batch->batch_number ?? '—' }}</td>
                                                     <td class="px-3 py-2 text-slate-700">{{ $batch->quantity }}</td>
                                                     <td class="px-3 py-2 text-slate-700">{{ $batch->received_date->format('M j, Y') }}</td>
-                                                    <td class="px-3 py-2 {{ $batch->is_expired ? 'text-rose-600 font-medium' : 'text-slate-700' }}">
+                                                    <td class="px-3 py-2 {{ $batch->is_expired ? 'text-rose-600 font-medium' : ($batch->is_expiring_soon ? 'text-amber-600 font-medium' : 'text-slate-700') }}">
                                                         {{ $batch->expiry_date->format('M j, Y') }}
+                                                        @if ($batch->is_expired)
+                                                            <span class="ml-1 inline-flex items-center rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">Expired</span>
+                                                        @elseif ($batch->is_expiring_soon)
+                                                            <span class="ml-1 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Expiring soon</span>
+                                                        @endif
                                                     </td>
                                                     <td class="px-3 py-2 text-right">
                                                         <button

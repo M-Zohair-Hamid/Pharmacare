@@ -25,7 +25,21 @@ class Pos extends Component
     public ?int $lastSaleId = null;
     public ?string $lastBillCode = null;
 
-    public function addToCart(int $medicineId): void
+    // Infinite scroll page size, see Medicines\Index for the same pattern.
+    public int $perPage = 10;
+
+    public function updatingSearch(): void
+    {
+        $this->resetPage();
+        $this->perPage = 10;
+    }
+
+    public function loadMore(): void
+    {
+        $this->perPage += 10;
+    }
+
+    public function addToCart(int $medicineId, string $saleUnit = 'tablet'): void
     {
         $medicine = Medicine::findOrFail($medicineId);
 
@@ -39,57 +53,85 @@ class Pos extends Component
             return;
         }
 
-        if (isset($this->cart[$medicineId])) {
-            if ($this->cart[$medicineId]['quantity'] + 1 > $medicine->quantity) {
+        $sellableAsBox = $medicine->medicine_type === 'Tablet'
+            && $medicine->tablets_per_box
+            && $medicine->tablets_per_box > 0
+            && $medicine->box_price;
+
+        if ($saleUnit === 'box' && !$sellableAsBox) {
+            $saleUnit = 'tablet';
+        }
+
+        $unitsPerSaleUnit = $saleUnit === 'box' ? (int) $medicine->tablets_per_box : 1;
+        $unitPrice = $saleUnit === 'box' ? (float) $medicine->box_price : (float) $medicine->unit_price;
+        $unitLabel = $saleUnit === 'box' ? 'Box' : $medicine->medicine_type;
+
+        // Cart key includes the sale unit so "1 box" and "1 tablet" of the
+        // same medicine can sit as separate lines in the same order.
+        $cartKey = $medicineId . '-' . $saleUnit;
+
+        if (isset($this->cart[$cartKey])) {
+            $newQuantity = $this->cart[$cartKey]['quantity'] + 1;
+            if ($newQuantity * $unitsPerSaleUnit > $medicine->quantity) {
                 $this->addError('cart', "Not enough stock for {$medicine->name}.");
                 return;
             }
-            $this->cart[$medicineId]['quantity']++;
+            $this->cart[$cartKey]['quantity'] = $newQuantity;
         } else {
-            // Unit type/price always come from the medicine itself — not user-selectable —
-            // so the sale always reflects how the medicine is actually sold (per tablet, box, etc).
-            $this->cart[$medicineId] = [
+            if ($unitsPerSaleUnit > $medicine->quantity) {
+                $this->addError('cart', "Not enough stock for {$medicine->name}.");
+                return;
+            }
+
+            $this->cart[$cartKey] = [
                 'medicine_id' => $medicine->id,
                 'name' => $medicine->name,
                 'quantity' => 1,
-                'unit_type' => $medicine->medicine_type,
-                'unit_price' => (float) $medicine->unit_price,
+                'sale_unit' => $saleUnit,
+                'unit_type' => $unitLabel,
+                'unit_price' => $unitPrice,
+                'units_per_sale_unit' => $unitsPerSaleUnit,
                 'available' => $medicine->quantity,
+                'sellable_as_box' => $sellableAsBox,
             ];
         }
 
         $this->resetErrorBag('cart');
     }
 
-    public function updateQuantity(int $medicineId, int $quantity): void
+    public function updateQuantity(string $cartKey, int $quantity): void
     {
-        if (!isset($this->cart[$medicineId])) {
+        if (!isset($this->cart[$cartKey])) {
             return;
         }
 
         if ($quantity <= 0) {
-            unset($this->cart[$medicineId]);
+            unset($this->cart[$cartKey]);
             return;
         }
 
-        if ($quantity > $this->cart[$medicineId]['available']) {
-            $this->addError('cart', "Only {$this->cart[$medicineId]['available']} in stock for {$this->cart[$medicineId]['name']}.");
+        $unitsNeeded = $quantity * $this->cart[$cartKey]['units_per_sale_unit'];
+
+        if ($unitsNeeded > $this->cart[$cartKey]['available']) {
+            $maxAllowed = intdiv($this->cart[$cartKey]['available'], $this->cart[$cartKey]['units_per_sale_unit']);
+            $this->addError('cart', "Only {$maxAllowed} {$this->cart[$cartKey]['unit_type']}(s) in stock for {$this->cart[$cartKey]['name']}.");
             return;
         }
 
-        $this->cart[$medicineId]['quantity'] = $quantity;
+        $this->cart[$cartKey]['quantity'] = $quantity;
         $this->resetErrorBag('cart');
     }
 
-    public function removeFromCart(int $medicineId): void
+    public function removeFromCart(string $cartKey): void
     {
-        unset($this->cart[$medicineId]);
+        unset($this->cart[$cartKey]);
     }
 
     public function getCartTotalProperty(): float
     {
         return collect($this->cart)->sum(fn ($item) => $item['quantity'] * $item['unit_price']);
     }
+
 
     /**
      * Mirrors offline-sales.ts createOfflineSale(): validates stock,
@@ -113,7 +155,9 @@ class Pos extends Component
                     // Lock the row to prevent race conditions on stock.
                     $medicine = Medicine::where('id', $item['medicine_id'])->lockForUpdate()->firstOrFail();
 
-                    if ($medicine->quantity < $item['quantity']) {
+                    $unitsNeeded = $item['quantity'] * $item['units_per_sale_unit'];
+
+                    if ($medicine->quantity < $unitsNeeded) {
                         throw new \RuntimeException("Insufficient stock for {$medicine->name}.");
                     }
 
@@ -127,12 +171,12 @@ class Pos extends Component
                     $lineItems[] = [
                         'medicine_id' => $medicine->id,
                         'quantity' => $item['quantity'],
-                        'unit_type' => $medicine->medicine_type,
+                        'unit_type' => $item['unit_type'],
                         'unit_price' => $item['unit_price'],
                         'subtotal' => $subtotal,
                     ];
 
-                    $medicine->decrement('quantity', $item['quantity']);
+                    $medicine->decrement('quantity', $unitsNeeded);
                 }
 
                 $sale = Sale::create([
@@ -175,7 +219,7 @@ class Pos extends Component
                 $q->whereNull('expiry_date')->orWhere('expiry_date', '>=', now());
             })
             ->orderBy('name')
-            ->paginate(10);
+            ->paginate($this->perPage);
 
         return view('livewire.sales.pos', [
             'medicines' => $medicines,

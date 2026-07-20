@@ -26,6 +26,9 @@ class History extends Component
     public array $selected = [];
     public bool $selectAll = false;
 
+    // Infinite scroll page size, see Medicines\Index for the same pattern.
+    public int $perPage = 20;
+
     // Refund modal state
     public bool $showRefundModal = false;
     public ?int $refundingSaleId = null;
@@ -34,16 +37,24 @@ class History extends Component
     public function updatingQ(): void
     {
         $this->resetPage();
+        $this->perPage = 20;
     }
 
     public function updatingDateFrom(): void
     {
         $this->resetPage();
+        $this->perPage = 20;
     }
 
     public function updatingDateTo(): void
     {
         $this->resetPage();
+        $this->perPage = 20;
+    }
+
+    public function loadMore(): void
+    {
+        $this->perPage += 20;
     }
 
     public function updatedSelectAll($value): void
@@ -122,16 +133,6 @@ class History extends Component
         Sale::findOrFail($id)->delete();
     }
 
-    public function forceDelete(int $id): void
-    {
-        try {
-            Sale::withTrashed()->findOrFail($id)->forceDelete();
-            session()->flash('success', 'Sale permanently deleted.');
-        } catch (\Throwable $e) {
-            session()->flash('error', 'Could not permanently delete this sale: ' . $e->getMessage());
-        }
-    }
-
     public function bulkDelete(): void
     {
         if (empty($this->selected)) {
@@ -146,24 +147,6 @@ class History extends Component
             $this->selectAll = false;
         } catch (\Throwable $e) {
             session()->flash('error', 'Could not delete selected sales: ' . $e->getMessage());
-        }
-    }
-
-    public function bulkForceDelete(): void
-    {
-        if (empty($this->selected)) {
-            session()->flash('error', 'No sales selected.');
-            return;
-        }
-
-        try {
-            $count = count($this->selected);
-            Sale::withTrashed()->whereIn('id', $this->selected)->forceDelete();
-            session()->flash('success', $count . ' sale(s) permanently deleted.');
-            $this->selected = [];
-            $this->selectAll = false;
-        } catch (\Throwable $e) {
-            session()->flash('error', 'Could not permanently delete selected sales: ' . $e->getMessage());
         }
     }
 
@@ -187,12 +170,10 @@ class History extends Component
             $query->where('created_at', '<=', $this->dateTo . ' 23:59:59');
         }
 
-        $sales = $query->orderByDesc('created_at')->paginate(20);
-        $trashed = Sale::onlyTrashed()->orderByDesc('deleted_at')->get();
+        $sales = $query->orderByDesc('created_at')->paginate($this->perPage);
 
         return view('livewire.sales.history', [
             'sales' => $sales,
-            'trashed' => $trashed,
             'settings' => \App\Models\Setting::current(),
         ]);
     }
