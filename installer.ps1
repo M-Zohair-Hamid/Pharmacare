@@ -434,13 +434,44 @@ $shortcut.Save()
 Write-Ok "Desktop shortcut created: $shortcutPath"
 
 # ---------------------------------------------------------------
+# 8. Create the Options desktop shortcut (Reset / Backup / Restore database)
+# ---------------------------------------------------------------
+
+Write-Step "Creating Options shortcut"
+
+$optionsPs1 = Join-Path $ProjectRoot "options.ps1"
+
+if (Test-Path $optionsPs1) {
+    $optionsShortcutPath = Join-Path $desktopPath "PharmaCare Options.lnk"
+
+    $optionsShortcut = $wshShell.CreateShortcut($optionsShortcutPath)
+    $optionsShortcut.TargetPath = $powershellExe
+    # No -WindowStyle Hidden here: Options is an interactive console menu,
+    # so its window needs to stay visible for the user to read/respond to it.
+    $optionsShortcut.Arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $optionsPs1 + '"'
+    $optionsShortcut.WorkingDirectory = $ProjectRoot
+    $optionsShortcut.IconLocation = "shell32.dll,166"   # generic "settings/gears" style icon from Windows' own icon set
+    $optionsShortcut.Description = "PharmaCare database options: reset, backup, restore"
+    $optionsShortcut.Save()
+
+    Write-Ok "Desktop shortcut created: $optionsShortcutPath"
+} else {
+    Write-Warn "options.ps1 not found next to installer.ps1 - skipping Options shortcut."
+}
+
+# ---------------------------------------------------------------
 # Done
 # ---------------------------------------------------------------
+
 
 Write-Host ""
 Write-Host "==================================================" -ForegroundColor Green
 Write-Host " Install complete." -ForegroundColor Green
 Write-Host " Double-click the 'PharmaCare' icon on the Desktop to start the app." -ForegroundColor Green
 Write-Host " It opens quietly in the background and launches your browser automatically." -ForegroundColor Green
+Write-Host ""
+Write-Host " Use the 'PharmaCare Options' icon on the Desktop to reset, back up," -ForegroundColor Green
+Write-Host " or restore the database." -ForegroundColor Green
 Write-Host "==================================================" -ForegroundColor Green
+
 Read-Host "Press Enter to close"

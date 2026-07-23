@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Medicine;
 use App\Models\Purchase;
+use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\Supplier;
 use Livewire\Attributes\Layout;
@@ -16,6 +17,7 @@ use Livewire\Component;
  * deleted medicine is never confused with a deleted sale/receipt, etc.
  * Each section has its own restore()/forceDelete() action scoped to its
  * own model.
+ * 
  */
 #[Layout('layouts.app')]
 class Bin extends Component
@@ -24,9 +26,59 @@ class Bin extends Component
     #[Url]
     public string $tab = 'medicines';
 
+    /** Per-section arrays of selected trashed-record ids, keyed by tab name. */
+    public array $selected = [
+        'medicines' => [],
+        'sales' => [],
+        'purchases' => [],
+        'suppliers' => [],
+        'customers' => [],
+    ];
+
     public function setTab(string $tab): void
     {
         $this->tab = $tab;
+    }
+
+    /**
+     * Toggle "select all" for a given section. $ids is the full list of
+     * trashed ids currently shown in that section's table.
+     */
+    public function toggleSelectAll(string $section, array $ids): void
+    {
+        $current = $this->selected[$section] ?? [];
+        $allSelected = count($ids) > 0 && count(array_diff($ids, $current)) === 0;
+
+        $this->selected[$section] = $allSelected ? [] : $ids;
+    }
+
+    /**
+     * Permanently delete every selected record in a section (bulk "Delete all").
+     */
+    public function deleteAllSelected(string $section): void
+    {
+        $ids = $this->selected[$section] ?? [];
+
+        if (empty($ids)) {
+            session()->flash('error', 'Select at least one item first.');
+            return;
+        }
+
+        try {
+            match ($section) {
+                'medicines' => Medicine::withTrashed()->whereIn('id', $ids)->get()->each->forceDelete(),
+                'sales' => Sale::withTrashed()->whereIn('id', $ids)->get()->each->forceDelete(),
+                'purchases' => Purchase::withTrashed()->whereIn('id', $ids)->get()->each->forceDelete(),
+                'suppliers' => Supplier::withTrashed()->whereIn('id', $ids)->get()->each->forceDelete(),
+                'customers' => Customer::withTrashed()->whereIn('id', $ids)->get()->each->forceDelete(),
+                default => null,
+            };
+
+            $this->selected[$section] = [];
+            session()->flash('success', count($ids) . ' item(s) permanently deleted.');
+        } catch (\Throwable $e) {
+            session()->flash('error', 'Could not permanently delete some items: ' . $e->getMessage());
+        }
     }
 
     // ---------------------------------------------------------------
@@ -48,6 +100,7 @@ class Bin extends Component
             session()->flash('error', 'Could not permanently delete this medicine: ' . $e->getMessage());
         }
     }
+
 
     // ---------------------------------------------------------------
     // Sales
@@ -109,6 +162,25 @@ class Bin extends Component
         }
     }
 
+    // ---------------------------------------------------------------
+    // Customers
+    // ---------------------------------------------------------------
+
+    public function restoreCustomer(int $id): void
+    {
+        Customer::onlyTrashed()->findOrFail($id)->restore();
+        session()->flash('success', 'Customer restored.');
+    }
+
+    public function forceDeleteCustomer(int $id): void
+    {
+        try {
+            Customer::withTrashed()->findOrFail($id)->forceDelete();
+            session()->flash('success', 'Customer permanently deleted.');
+        } catch (\Throwable $e) {
+            session()->flash('error', 'Could not permanently delete this customer: ' . $e->getMessage());
+        }
+    }
 
     public function render()
     {
@@ -117,6 +189,7 @@ class Bin extends Component
             'trashedSales' => Sale::onlyTrashed()->orderByDesc('deleted_at')->get(),
             'trashedPurchases' => Purchase::onlyTrashed()->with('supplier')->orderByDesc('deleted_at')->get(),
             'trashedSuppliers' => Supplier::onlyTrashed()->orderByDesc('deleted_at')->get(),
+            'trashedCustomers' => Customer::onlyTrashed()->orderByDesc('deleted_at')->get(),
         ]);
     }
 }

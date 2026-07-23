@@ -20,6 +20,7 @@
             'sales' => ['Sales / Receipts', $trashedSales->count()],
             'purchases' => ['Purchases', $trashedPurchases->count()],
             'suppliers' => ['Suppliers', $trashedSuppliers->count()],
+            'customers' => ['Customers', $trashedCustomers->count()],
         ] as $key => [$label, $count])
             <button
                 type="button"
@@ -34,11 +35,34 @@
 
     {{-- Medicines --}}
     @if ($tab === 'medicines')
+        @php $medicineIds = $trashedMedicines->pluck('id')->all(); @endphp
+        @if (count($medicineIds) > 0)
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm">
+                <label class="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+                    <input
+                        type="checkbox"
+                        class="h-4 w-4 cursor-pointer rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                        @checked(count($medicineIds) > 0 && count(array_diff($medicineIds, $selected['medicines'])) === 0)
+                        wire:click="toggleSelectAll('medicines', {{ json_encode($medicineIds) }})"
+                    />
+                    Select all
+                    <span class="text-xs font-normal text-slate-400">({{ count($selected['medicines']) }} selected)</span>
+                </label>
+                <button
+                    type="button"
+                    wire:click="deleteAllSelected('medicines')"
+                    wire:confirm="Permanently delete {{ count($selected['medicines']) }} selected medicine(s)? This cannot be undone and will also remove their sale/purchase history."
+                    @disabled(count($selected['medicines']) === 0)
+                    class="cursor-pointer rounded-xl bg-rose-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition-colors duration-150 hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                >Delete all selected</button>
+            </div>
+        @endif
         <div class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
             <div class="overflow-x-auto">
                 <table class="min-w-full text-left text-sm">
                     <thead>
                         <tr class="border-b border-slate-100">
+                            <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500"></th>
                             <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Medicine</th>
                             <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Type</th>
                             <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Deleted at</th>
@@ -48,6 +72,9 @@
                     <tbody>
                         @forelse ($trashedMedicines as $medicine)
                             <tr wire:key="bin-medicine-{{ $medicine->id }}" class="border-b border-slate-50 last:border-0">
+                                <td class="px-4 py-3 align-middle">
+                                    <input type="checkbox" class="h-4 w-4 cursor-pointer rounded border-slate-300 text-teal-600 focus:ring-teal-500" wire:model="selected.medicines" value="{{ $medicine->id }}" />
+                                </td>
                                 <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->name }}</td>
                                 <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->medicine_type }}</td>
                                 <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->deleted_at?->format('M j, Y g:i A') }}</td>
@@ -63,7 +90,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="4" class="px-4 py-12 text-center text-sm text-slate-500">No deleted medicines.</td></tr>
+                            <tr><td colspan="5" class="px-4 py-12 text-center text-sm text-slate-500">No deleted medicines.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -73,11 +100,34 @@
 
     {{-- Sales --}}
     @if ($tab === 'sales')
+        @php $saleIds = $trashedSales->pluck('id')->all(); @endphp
+        @if (count($saleIds) > 0)
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm">
+                <label class="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+                    <input
+                        type="checkbox"
+                        class="h-4 w-4 cursor-pointer rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                        @checked(count($saleIds) > 0 && count(array_diff($saleIds, $selected['sales'])) === 0)
+                        wire:click="toggleSelectAll('sales', {{ json_encode($saleIds) }})"
+                    />
+                    Select all
+                    <span class="text-xs font-normal text-slate-400">({{ count($selected['sales']) }} selected)</span>
+                </label>
+                <button
+                    type="button"
+                    wire:click="deleteAllSelected('sales')"
+                    wire:confirm="Permanently delete {{ count($selected['sales']) }} selected sale(s)? This cannot be undone."
+                    @disabled(count($selected['sales']) === 0)
+                    class="cursor-pointer rounded-xl bg-rose-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition-colors duration-150 hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                >Delete all selected</button>
+            </div>
+        @endif
         <div class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
             <div class="overflow-x-auto">
                 <table class="min-w-full text-left text-sm">
                     <thead>
                         <tr class="border-b border-slate-100">
+                            <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500"></th>
                             <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Bill Code</th>
                             <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Customer</th>
                             <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Deleted at (PKT)</th>
@@ -87,6 +137,9 @@
                     <tbody>
                         @forelse ($trashedSales as $sale)
                             <tr wire:key="bin-sale-{{ $sale->id }}" class="border-b border-slate-50 last:border-0">
+                                <td class="px-4 py-3 align-middle">
+                                    <input type="checkbox" class="h-4 w-4 cursor-pointer rounded border-slate-300 text-teal-600 focus:ring-teal-500" wire:model="selected.sales" value="{{ $sale->id }}" />
+                                </td>
                                 <td class="px-4 py-3 align-middle font-mono text-sm">{{ $sale->bill_code }}</td>
                                 <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->customer_name ?? 'Walk-in' }}</td>
                                 <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->deleted_at?->timezone('Asia/Karachi')->format('j M Y, g:i A') }} PKT</td>
@@ -102,7 +155,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="4" class="px-4 py-12 text-center text-sm text-slate-500">No deleted sales.</td></tr>
+                            <tr><td colspan="5" class="px-4 py-12 text-center text-sm text-slate-500">No deleted sales.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -112,11 +165,34 @@
 
     {{-- Purchases --}}
     @if ($tab === 'purchases')
+        @php $purchaseIds = $trashedPurchases->pluck('id')->all(); @endphp
+        @if (count($purchaseIds) > 0)
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm">
+                <label class="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+                    <input
+                        type="checkbox"
+                        class="h-4 w-4 cursor-pointer rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                        @checked(count($purchaseIds) > 0 && count(array_diff($purchaseIds, $selected['purchases'])) === 0)
+                        wire:click="toggleSelectAll('purchases', {{ json_encode($purchaseIds) }})"
+                    />
+                    Select all
+                    <span class="text-xs font-normal text-slate-400">({{ count($selected['purchases']) }} selected)</span>
+                </label>
+                <button
+                    type="button"
+                    wire:click="deleteAllSelected('purchases')"
+                    wire:confirm="Permanently delete {{ count($selected['purchases']) }} selected purchase(s)? This cannot be undone."
+                    @disabled(count($selected['purchases']) === 0)
+                    class="cursor-pointer rounded-xl bg-rose-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition-colors duration-150 hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                >Delete all selected</button>
+            </div>
+        @endif
         <div class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
             <div class="overflow-x-auto">
                 <table class="min-w-full text-left text-sm">
                     <thead>
                         <tr class="border-b border-slate-100">
+                            <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500"></th>
                             <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Purchase</th>
                             <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Supplier</th>
                             <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Deleted at</th>
@@ -126,6 +202,9 @@
                     <tbody>
                         @forelse ($trashedPurchases as $purchase)
                             <tr wire:key="bin-purchase-{{ $purchase->id }}" class="border-b border-slate-50 last:border-0">
+                                <td class="px-4 py-3 align-middle">
+                                    <input type="checkbox" class="h-4 w-4 cursor-pointer rounded border-slate-300 text-teal-600 focus:ring-teal-500" wire:model="selected.purchases" value="{{ $purchase->id }}" />
+                                </td>
                                 <td class="px-4 py-3 align-middle text-slate-700">#{{ $purchase->id }}</td>
                                 <td class="px-4 py-3 align-middle text-slate-700">{{ $purchase->supplier->name ?? '—' }}</td>
                                 <td class="px-4 py-3 align-middle text-slate-700">{{ $purchase->deleted_at?->format('M j, Y g:i A') }}</td>
@@ -141,7 +220,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="4" class="px-4 py-12 text-center text-sm text-slate-500">No deleted purchases.</td></tr>
+                            <tr><td colspan="5" class="px-4 py-12 text-center text-sm text-slate-500">No deleted purchases.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -151,11 +230,34 @@
 
     {{-- Suppliers --}}
     @if ($tab === 'suppliers')
+        @php $supplierIds = $trashedSuppliers->pluck('id')->all(); @endphp
+        @if (count($supplierIds) > 0)
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm">
+                <label class="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+                    <input
+                        type="checkbox"
+                        class="h-4 w-4 cursor-pointer rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                        @checked(count($supplierIds) > 0 && count(array_diff($supplierIds, $selected['suppliers'])) === 0)
+                        wire:click="toggleSelectAll('suppliers', {{ json_encode($supplierIds) }})"
+                    />
+                    Select all
+                    <span class="text-xs font-normal text-slate-400">({{ count($selected['suppliers']) }} selected)</span>
+                </label>
+                <button
+                    type="button"
+                    wire:click="deleteAllSelected('suppliers')"
+                    wire:confirm="Permanently delete {{ count($selected['suppliers']) }} selected supplier(s)? This cannot be undone."
+                    @disabled(count($selected['suppliers']) === 0)
+                    class="cursor-pointer rounded-xl bg-rose-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition-colors duration-150 hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                >Delete all selected</button>
+            </div>
+        @endif
         <div class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
             <div class="overflow-x-auto">
                 <table class="min-w-full text-left text-sm">
                     <thead>
                         <tr class="border-b border-slate-100">
+                            <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500"></th>
                             <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Name</th>
                             <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Deleted at</th>
                             <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500"></th>
@@ -164,6 +266,9 @@
                     <tbody>
                         @forelse ($trashedSuppliers as $supplier)
                             <tr wire:key="bin-supplier-{{ $supplier->id }}" class="border-b border-slate-50 last:border-0">
+                                <td class="px-4 py-3 align-middle">
+                                    <input type="checkbox" class="h-4 w-4 cursor-pointer rounded border-slate-300 text-teal-600 focus:ring-teal-500" wire:model="selected.suppliers" value="{{ $supplier->id }}" />
+                                </td>
                                 <td class="px-4 py-3 align-middle text-slate-700">{{ $supplier->name }}</td>
                                 <td class="px-4 py-3 align-middle text-slate-700">{{ $supplier->deleted_at?->format('M j, Y g:i A') }}</td>
                                 <td class="px-4 py-3 align-middle text-right">
@@ -178,7 +283,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="3" class="px-4 py-12 text-center text-sm text-slate-500">No deleted suppliers.</td></tr>
+                            <tr><td colspan="4" class="px-4 py-12 text-center text-sm text-slate-500">No deleted suppliers.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -188,11 +293,34 @@
 
     {{-- Customers --}}
     @if ($tab === 'customers')
+        @php $customerIds = $trashedCustomers->pluck('id')->all(); @endphp
+        @if (count($customerIds) > 0)
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm">
+                <label class="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+                    <input
+                        type="checkbox"
+                        class="h-4 w-4 cursor-pointer rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                        @checked(count($customerIds) > 0 && count(array_diff($customerIds, $selected['customers'])) === 0)
+                        wire:click="toggleSelectAll('customers', {{ json_encode($customerIds) }})"
+                    />
+                    Select all
+                    <span class="text-xs font-normal text-slate-400">({{ count($selected['customers']) }} selected)</span>
+                </label>
+                <button
+                    type="button"
+                    wire:click="deleteAllSelected('customers')"
+                    wire:confirm="Permanently delete {{ count($selected['customers']) }} selected customer(s)? This cannot be undone."
+                    @disabled(count($selected['customers']) === 0)
+                    class="cursor-pointer rounded-xl bg-rose-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition-colors duration-150 hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                >Delete all selected</button>
+            </div>
+        @endif
         <div class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
             <div class="overflow-x-auto">
                 <table class="min-w-full text-left text-sm">
                     <thead>
                         <tr class="border-b border-slate-100">
+                            <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500"></th>
                             <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Name</th>
                             <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Deleted at</th>
                             <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500"></th>
@@ -201,6 +329,9 @@
                     <tbody>
                         @forelse ($trashedCustomers as $customer)
                             <tr wire:key="bin-customer-{{ $customer->id }}" class="border-b border-slate-50 last:border-0">
+                                <td class="px-4 py-3 align-middle">
+                                    <input type="checkbox" class="h-4 w-4 cursor-pointer rounded border-slate-300 text-teal-600 focus:ring-teal-500" wire:model="selected.customers" value="{{ $customer->id }}" />
+                                </td>
                                 <td class="px-4 py-3 align-middle text-slate-700">{{ $customer->name }}</td>
                                 <td class="px-4 py-3 align-middle text-slate-700">{{ $customer->deleted_at?->format('M j, Y g:i A') }}</td>
                                 <td class="px-4 py-3 align-middle text-right">
@@ -215,7 +346,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="3" class="px-4 py-12 text-center text-sm text-slate-500">No deleted customers.</td></tr>
+                            <tr><td colspan="4" class="px-4 py-12 text-center text-sm text-slate-500">No deleted customers.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
