@@ -90,7 +90,7 @@
                                         {{ number_format($item['unit_price'], 2) }} / {{ $item['unit_type'] }}
                                     </p>
                                 </div>
-                                <button wire:click="removeFromCart({{ $medicineId }})" class="cursor-pointer text-xs text-rose-600 transition-colors duration-150 hover:text-rose-700">Remove</button>
+                                <button wire:click="removeFromCart('{{ $medicineId }}')" class="cursor-pointer text-xs text-rose-600 transition-colors duration-150 hover:text-rose-700">Remove</button>
                             </div>
                             <div class="mt-2 flex items-center gap-2">
                                 <input
@@ -98,7 +98,7 @@
                                     min="1"
                                     max="{{ $item['available'] }}"
                                     value="{{ $item['quantity'] }}"
-                                    wire:change="updateQuantity({{ $medicineId }}, $event.target.value)"
+                                    wire:change="updateQuantity('{{ $medicineId }}', $event.target.value)"
                                     class="w-20 rounded-lg border border-slate-200 px-2 py-1 text-sm"
                                 />
                                 <span class="text-sm text-slate-500">{{ $item['unit_type'] }}(s)</span>

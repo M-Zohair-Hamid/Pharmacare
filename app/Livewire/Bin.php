@@ -17,7 +17,7 @@ use Livewire\Component;
  * deleted medicine is never confused with a deleted sale/receipt, etc.
  * Each section has its own restore()/forceDelete() action scoped to its
  * own model.
- * 
+ *
  */
 #[Layout('layouts.app')]
 class Bin extends Component
