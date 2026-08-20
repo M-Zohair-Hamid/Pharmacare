@@ -46,9 +46,12 @@ class Index extends Component
     public ?string $expiryDate = null;
     public string $description = '';
 
-    // Tablet-specific pricing: box price ÷ tablets per box = unit price per tablet.
+    // Tablet-specific pricing: box price ÷ tablets per box = unit price per tablet (suggested,
+    // but editable — once the user types their own unit price, auto-recalculation stops
+    // overwriting it until they change tablets/box price again).
     public ?string $tabletsPerBox = null;
     public ?string $boxPrice = null;
+    public bool $unitPriceManuallyEdited = false;
 
     // Bulk selection
     public array $selected = [];
@@ -104,17 +107,28 @@ class Index extends Component
 
     public function updatedTabletsPerBox(): void
     {
+        // A new box size means the old suggested price no longer applies, so let
+        // auto-calc suggest again even if the user had previously typed their own.
+        $this->unitPriceManuallyEdited = false;
         $this->recalculateUnitPriceFromBox();
     }
 
     public function updatedBoxPrice(): void
     {
+        $this->unitPriceManuallyEdited = false;
         $this->recalculateUnitPriceFromBox();
+    }
+
+    public function updatedUnitPrice(): void
+    {
+        // The user is typing directly into the Unit Price field themselves —
+        // stop overwriting it automatically from the box price calculation.
+        $this->unitPriceManuallyEdited = true;
     }
 
     protected function recalculateUnitPriceFromBox(): void
     {
-        if ($this->medicineType !== 'Tablet') {
+        if ($this->medicineType !== 'Tablet' || $this->unitPriceManuallyEdited) {
             return;
         }
 
@@ -191,6 +205,9 @@ class Index extends Component
         $this->description = $medicine->description ?? '';
         $this->tabletsPerBox = $medicine->tablets_per_box !== null ? (string) $medicine->tablets_per_box : null;
         $this->boxPrice = $medicine->box_price !== null ? (string) $medicine->box_price : null;
+        // Respect the price already saved on this medicine — don't silently recalculate
+        // it until the box price or tablets-per-box are actually changed again.
+        $this->unitPriceManuallyEdited = true;
         $this->showBatchForm = false;
         $this->resetBatchForm();
         $this->showModal = true;
@@ -259,6 +276,7 @@ class Index extends Component
             'editingId', 'name', 'genericName', 'manufacturer',
             'unitPrice', 'costPrice', 'quantity',
             'expiryDate', 'description', 'tabletsPerBox', 'boxPrice',
+            'unitPriceManuallyEdited',
         ]);
         $this->category_field = 'General';
         $this->medicineType = 'Tablet';
@@ -278,9 +296,10 @@ class Index extends Component
     /*
     |--------------------------------------------------------------------
     | Batch management — record new stock batches (expiry, received date,
-    | quantity) for the medicine currently being edited. Batches are kept
-    | separately from the medicine's overall quantity; the specific batch
-    | to draw from is chosen later at billing time.
+    | quantity) for the medicine currently being edited. Recording a batch
+    | adds its quantity to the medicine's overall stock; deleting a batch
+    | reverses it. The batch's own expiry/received dates are still tracked
+    | separately for expiry warnings.
     |--------------------------------------------------------------------
     */
 
@@ -329,13 +348,19 @@ class Index extends Component
 
         $validated = $this->validate($this->batchRules(), $this->batchMessages());
 
-        MedicineBatch::create([
+        $batch = MedicineBatch::create([
             'medicine_id' => $this->editingId,
             'batch_number' => $validated['batchNumber'] ?: null,
             'quantity' => $validated['batchQuantity'],
             'received_date' => $validated['batchReceivedDate'],
             'expiry_date' => $validated['batchExpiryDate'],
         ]);
+
+        // A recorded batch is new physical stock arriving — it must add to
+        // the medicine's overall quantity, not just sit in the batch list.
+        $medicine = Medicine::findOrFail($this->editingId);
+        $medicine->increment('quantity', $batch->quantity);
+        $this->quantity = $medicine->fresh()->quantity;
 
         session()->flash('success', 'Batch recorded successfully.');
         $this->resetBatchForm();
@@ -345,6 +370,14 @@ class Index extends Component
     public function deleteBatch(int $batchId): void
     {
         $batch = MedicineBatch::where('medicine_id', $this->editingId)->findOrFail($batchId);
+        $medicine = Medicine::findOrFail($this->editingId);
+
+        // Reverse the stock this batch contributed. Clamp at 0 in case some
+        // of it was already sold, so quantity never goes negative.
+        $newQuantity = max(0, $medicine->quantity - $batch->quantity);
+        $medicine->update(['quantity' => $newQuantity]);
+        $this->quantity = $newQuantity;
+
         $batch->delete();
         session()->flash('success', 'Batch deleted.');
     }

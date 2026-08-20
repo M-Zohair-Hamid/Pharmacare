@@ -19,6 +19,10 @@ class Pos extends Component
     public string $paymentMethod = 'cash';
     public string $notes = '';
 
+    // Percentage discount applied to the cart subtotal. Hard-capped at 100
+    // both client-side (max attr) and server-side (updated()/checkout()).
+    public string $discountPercent = '0';
+
     /** @var array<int, array{medicine_id:int, name:string, quantity:int, unit_type:string, unit_price:float, available:int}> */
     public array $cart = [];
 
@@ -127,9 +131,32 @@ class Pos extends Component
         unset($this->cart[$cartKey]);
     }
 
-    public function getCartTotalProperty(): float
+    /**
+     * Clamp the discount to [0, 100] the moment the user types it, so it's
+     * never possible to even briefly hold an invalid value client-side.
+     */
+    public function updatedDiscountPercent(): void
+    {
+        $value = is_numeric($this->discountPercent) ? (float) $this->discountPercent : 0;
+        $value = max(0, min(100, $value));
+        $this->discountPercent = (string) $value;
+    }
+
+    public function getCartSubtotalProperty(): float
     {
         return collect($this->cart)->sum(fn ($item) => $item['quantity'] * $item['unit_price']);
+    }
+
+    public function getDiscountAmountProperty(): float
+    {
+        $percent = max(0, min(100, (float) ($this->discountPercent ?: 0)));
+
+        return round($this->cartSubtotal * $percent / 100, 2);
+    }
+
+    public function getCartTotalProperty(): float
+    {
+        return max(0, $this->cartSubtotal - $this->discountAmount);
     }
 
 
@@ -146,8 +173,11 @@ class Pos extends Component
             return;
         }
 
+        // Server-side clamp: never trust the client value alone.
+        $discountPercent = max(0, min(100, (float) ($this->discountPercent ?: 0)));
+
         try {
-            $sale = DB::transaction(function () {
+            $sale = DB::transaction(function () use ($discountPercent) {
                 $total = 0;
                 $lineItems = [];
 
@@ -179,9 +209,14 @@ class Pos extends Component
                     $medicine->decrement('quantity', $unitsNeeded);
                 }
 
+                $discountAmount = round($total * $discountPercent / 100, 2);
+                $finalTotal = max(0, $total - $discountAmount);
+
                 $sale = Sale::create([
                     'customer_name' => trim($this->customerName) ?: null,
-                    'total_amount' => $total,
+                    'total_amount' => $finalTotal,
+                    'discount_percent' => $discountPercent,
+                    'discount_amount' => $discountAmount,
                     'payment_method' => $this->paymentMethod,
                     'notes' => $this->notes ?: null,
                 ]);
@@ -196,6 +231,7 @@ class Pos extends Component
             $this->cart = [];
             $this->customerName = '';
             $this->notes = '';
+            $this->discountPercent = '0';
             $this->resetErrorBag('cart');
 
             $this->dispatch('sale-completed', saleId: $sale->id);

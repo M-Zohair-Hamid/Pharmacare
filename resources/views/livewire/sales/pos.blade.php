@@ -112,9 +112,38 @@
                     @endforelse
                 </div>
 
-                <div class="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
-                    <span class="text-sm font-medium text-slate-700">Total</span>
-                    <span class="text-lg font-semibold text-slate-900">{{ number_format($this->cartTotal, 2) }}</span>
+                <div class="mt-4 border-t border-slate-100 pt-4">
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Discount</label>
+                        <div class="flex items-center gap-2">
+                            <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="1"
+                                wire:model.live="discountPercent"
+                                class="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                            />
+                            <span class="text-sm text-slate-500">% off (max 100%)</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 space-y-1">
+                        <div class="flex items-center justify-between text-sm text-slate-600">
+                            <span>Subtotal</span>
+                            <span>{{ number_format($this->cartSubtotal, 2) }}</span>
+                        </div>
+                        @if ($this->discountAmount > 0)
+                            <div class="flex items-center justify-between text-sm text-teal-700">
+                                <span>Discount</span>
+                                <span>-{{ number_format($this->discountAmount, 2) }}</span>
+                            </div>
+                        @endif
+                        <div class="flex items-center justify-between pt-1">
+                            <span class="text-sm font-medium text-slate-700">Total</span>
+                            <span class="text-lg font-semibold text-slate-900">{{ number_format($this->cartTotal, 2) }}</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="mt-4 space-y-3">

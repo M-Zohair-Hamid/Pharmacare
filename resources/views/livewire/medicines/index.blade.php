@@ -149,7 +149,28 @@
     @if ($showModal)
         <div class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 p-4 sm:items-center">
             <div class="absolute inset-0 cursor-pointer" wire:click="closeModal"></div>
-            <div class="relative z-10 max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+            <div
+                x-data="{ showExpiryToast: true }"
+                x-init="setTimeout(() => showExpiryToast = false, 4000)"
+                class="relative z-10 max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white shadow-2xl"
+            >
+                {{-- One-time reminder toast: fires every time this modal opens --}}
+                <div
+                    x-show="showExpiryToast"
+                    x-transition:enter="transition ease-out duration-200"
+                    x-transition:enter-start="opacity-0 -translate-y-2"
+                    x-transition:enter-end="opacity-100 translate-y-0"
+                    x-transition:leave="transition ease-in duration-150"
+                    x-transition:leave-start="opacity-100"
+                    x-transition:leave-end="opacity-0"
+                    class="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center px-4"
+                >
+                    <div class="pointer-events-auto flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800 shadow-lg">
+                        ⏰ Reminder: don't forget to set an accurate Expiry Date.
+                        <button type="button" @click="showExpiryToast = false" class="cursor-pointer text-amber-500 hover:text-amber-700">✕</button>
+                    </div>
+                </div>
+
                 <div class="sticky top-0 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-3">
                     <h3 class="text-lg font-semibold text-slate-900">{{ $editingId ? 'Edit Medicine' : 'Add Medicine' }}</h3>
                     <button wire:click="closeModal" class="cursor-pointer rounded-xl px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors duration-150 hover:bg-slate-100">Close</button>
@@ -227,10 +248,11 @@
                         <input type="number" step="0.01" wire:model="costPrice" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
                         @error('costPrice') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
                     </div>
-                    <div>
-                    <div>
-                        <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Expiry Date <span class="text-rose-600">*</span></label>
-                        <input type="date" wire:model="expiryDate" min="{{ now()->format('Y-m-d') }}" required class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                    <div class="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                        <label class="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-amber-700">
+                            Expiry Date <span class="text-rose-600">*</span>
+                        </label>
+                        <input type="date" wire:model="expiryDate" min="{{ now()->format('Y-m-d') }}" required class="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20" />
                         @error('expiryDate') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
                     </div>
                     <div class="sm:col-span-2 lg:col-span-3">

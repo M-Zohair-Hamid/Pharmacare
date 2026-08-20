@@ -18,6 +18,8 @@ class Sale extends Model
         'bill_code',
         'customer_name',
         'total_amount',
+        'discount_percent',
+        'discount_amount',
         'payment_method',
         'notes',
         'refunded_at',
@@ -26,6 +28,8 @@ class Sale extends Model
 
     protected $casts = [
         'total_amount' => 'decimal:2',
+        'discount_percent' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
         'created_at' => 'datetime',
         'refunded_at' => 'datetime',
     ];

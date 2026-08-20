@@ -139,6 +139,16 @@
         </div>
 
         <div class="summary">
+            @if ($sale->discount_amount > 0)
+                <div class="summary-row">
+                    <span>Subtotal</span>
+                    <span>{{ number_format($sale->total_amount + $sale->discount_amount, 2) }}</span>
+                </div>
+                <div class="summary-row">
+                    <span>Discount ({{ number_format($sale->discount_percent, 0) }}%)</span>
+                    <span>-{{ number_format($sale->discount_amount, 2) }}</span>
+                </div>
+            @endif
             <div class="summary-row total">
                 <span>TOTAL</span>
                 <span>{{ number_format($sale->total_amount, 2) }}</span>
