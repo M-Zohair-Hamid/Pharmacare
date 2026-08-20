@@ -74,7 +74,14 @@
                             <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->customer_name ?? 'Walk-in' }}</td>
                             <td class="px-4 py-3 align-middle text-slate-700">{{ $sale->items->count() }}</td>
                             <td class="px-4 py-3 align-middle text-slate-700">{{ ucfirst($sale->payment_method) }}</td>
-                            <td class="px-4 py-3 align-middle font-medium text-slate-900">{{ number_format($sale->total_amount, 2) }}</td>
+                            <td class="px-4 py-3 align-middle font-medium text-slate-900">
+                                {{ number_format($sale->total_amount, 2) }}
+                                @if ($sale->discount_amount > 0)
+                                    <span class="ml-1 inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-medium text-rose-600">
+                                        -{{ rtrim(rtrim(number_format($sale->discount_percent, 2), '0'), '.') }}%
+                                    </span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3 align-middle text-right">
                                 @if ($sale->is_refunded)
                                     <span class="mr-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">Refunded</span>

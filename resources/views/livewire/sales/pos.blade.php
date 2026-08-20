@@ -113,36 +113,38 @@
                 </div>
 
                 <div class="mt-4 border-t border-slate-100 pt-4">
-                    <div>
-                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Discount</label>
-                        <div class="flex items-center gap-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-slate-700">Bill Total</span>
+                        <span class="text-sm font-medium text-slate-900">{{ number_format($this->cartTotal, 2) }}</span>
+                    </div>
+
+                    <div class="mt-2 flex items-center justify-between gap-2">
+                        <label for="discountPercent" class="text-sm font-medium text-slate-700">Discount %</label>
+                        <div class="flex items-center gap-1">
                             <input
+                                id="discountPercent"
                                 type="number"
                                 min="0"
                                 max="100"
-                                step="1"
-                                wire:model.live="discountPercent"
-                                class="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                                step="0.01"
+                                placeholder="0"
+                                wire:model.live.debounce.300ms="discountPercent"
+                                class="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm"
                             />
-                            <span class="text-sm text-slate-500">% off (max 100%)</span>
+                            <span class="text-sm text-slate-500">%</span>
                         </div>
                     </div>
 
-                    <div class="mt-3 space-y-1">
-                        <div class="flex items-center justify-between text-sm text-slate-600">
-                            <span>Subtotal</span>
-                            <span>{{ number_format($this->cartSubtotal, 2) }}</span>
+                    @if ($this->discountPercentValue > 0)
+                        <div class="mt-2 flex items-center justify-between text-rose-600">
+                            <span class="text-sm font-medium">Discount ({{ rtrim(rtrim(number_format($this->discountPercentValue, 2), '0'), '.') }}%)</span>
+                            <span class="text-sm font-medium">&minus; {{ number_format($this->discountAmount, 2) }}</span>
                         </div>
-                        @if ($this->discountAmount > 0)
-                            <div class="flex items-center justify-between text-sm text-teal-700">
-                                <span>Discount</span>
-                                <span>-{{ number_format($this->discountAmount, 2) }}</span>
-                            </div>
-                        @endif
-                        <div class="flex items-center justify-between pt-1">
-                            <span class="text-sm font-medium text-slate-700">Total</span>
-                            <span class="text-lg font-semibold text-slate-900">{{ number_format($this->cartTotal, 2) }}</span>
-                        </div>
+                    @endif
+
+                    <div class="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
+                        <span class="text-sm font-semibold text-slate-700">Your Bill</span>
+                        <span class="text-lg font-semibold text-slate-900">{{ number_format($this->netTotal, 2) }}</span>
                     </div>
                 </div>
 

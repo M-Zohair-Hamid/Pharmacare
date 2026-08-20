@@ -69,7 +69,21 @@ class Index extends Component
     protected function rules(): array
     {
         return [
-            'name' => 'required|string|max:255',
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                function ($attribute, $value, $fail) {
+                    $exists = Medicine::query()
+                        ->whereRaw('LOWER(name) = ?', [strtolower(trim($value))])
+                        ->when($this->editingId, fn ($q) => $q->where('id', '!=', $this->editingId))
+                        ->exists();
+
+                    if ($exists) {
+                        $fail('This medicine has already been added before.');
+                    }
+                },
+            ],
             'genericName' => 'nullable|string|max:255',
             'category_field' => 'required|string|max:100',
             'medicineType' => 'required|string|in:' . implode(',', Medicine::TYPES),
@@ -77,7 +91,13 @@ class Index extends Component
             'unitPrice' => 'required|numeric|min:0',
             'costPrice' => 'required|numeric|min:0',
             'quantity' => 'required|integer|min:0',
-            'expiryDate' => 'required|date|after_or_equal:today',
+            // On create, this is the expiry of the initial stock batch we
+            // auto-create below. On edit, it's read-only in the UI (the
+            // field just displays whichever batch is soonest-expiring), so
+            // it's not user-editable and doesn't need the same validation.
+            'expiryDate' => $this->editingId
+                ? 'nullable|date'
+                : 'required|date|after_or_equal:today',
             'description' => 'nullable|string',
             'tabletsPerBox' => $this->medicineType === 'Tablet'
                 ? 'required|integer|min:1'
@@ -192,6 +212,7 @@ class Index extends Component
     public function openEdit(int $id): void
     {
         $medicine = Medicine::findOrFail($id);
+        $medicine->syncExpiryFromBatches();
         $this->editingId = $medicine->id;
         $this->name = $medicine->name;
         $this->genericName = $medicine->generic_name ?? '';
@@ -217,10 +238,12 @@ class Index extends Component
     {
         $validated = $this->validate();
 
-        // Belt-and-suspenders: explicitly block expired dates even if validation is bypassed client-side.
-        if (!empty($validated['expiryDate']) && \Carbon\Carbon::parse($validated['expiryDate'])->endOfDay()->isPast()) {
-            $this->addError('expiryDate', 'This medicine is already expired. Expired medicines cannot be added.');
-            return;
+        if (!$this->editingId) {
+            // Belt-and-suspenders: explicitly block expired dates even if validation is bypassed client-side.
+            if (!empty($validated['expiryDate']) && \Carbon\Carbon::parse($validated['expiryDate'])->endOfDay()->isPast()) {
+                $this->addError('expiryDate', 'This medicine is already expired. Expired medicines cannot be added.');
+                return;
+            }
         }
 
         $payload = [
@@ -232,16 +255,34 @@ class Index extends Component
             'unit_price' => $validated['unitPrice'],
             'cost_price' => $validated['costPrice'],
             'quantity' => $validated['quantity'],
-            'expiry_date' => $validated['expiryDate'] ?: null,
             'description' => $validated['description'] ?: null,
             'tablets_per_box' => $validated['medicineType'] === 'Tablet' ? $validated['tabletsPerBox'] : null,
             'box_price' => $validated['medicineType'] === 'Tablet' ? $validated['boxPrice'] : null,
         ];
 
         if ($this->editingId) {
-            Medicine::findOrFail($this->editingId)->update($payload);
+            // Expiry Date is read-only here — it's derived from batches, not
+            // submitted from this form. Don't touch it; just re-sync it in
+            // case the quantity change above shifted what "next up" means.
+            $medicine = Medicine::findOrFail($this->editingId);
+            $medicine->update($payload);
+            $medicine->syncExpiryFromBatches();
         } else {
-            Medicine::create($payload);
+            // New medicine: the expiry date entered here describes the
+            // initial stock, so it becomes that stock's first batch —
+            // exactly like any batch recorded later. Nothing is tracked
+            // as untracked "base" stock going forward.
+            $medicine = Medicine::create($payload + ['expiry_date' => $validated['expiryDate']]);
+
+            if ($validated['quantity'] > 0) {
+                MedicineBatch::create([
+                    'medicine_id' => $medicine->id,
+                    'batch_number' => null,
+                    'quantity' => $validated['quantity'],
+                    'received_date' => now()->toDateString(),
+                    'expiry_date' => $validated['expiryDate'],
+                ]);
+            }
         }
 
         $this->showModal = false;
@@ -360,7 +401,9 @@ class Index extends Component
         // the medicine's overall quantity, not just sit in the batch list.
         $medicine = Medicine::findOrFail($this->editingId);
         $medicine->increment('quantity', $batch->quantity);
-        $this->quantity = $medicine->fresh()->quantity;
+        $medicine->refresh()->syncExpiryFromBatches();
+        $this->quantity = $medicine->quantity;
+        $this->expiryDate = $medicine->expiry_date?->format('Y-m-d');
 
         session()->flash('success', 'Batch recorded successfully.');
         $this->resetBatchForm();
@@ -376,9 +419,12 @@ class Index extends Component
         // of it was already sold, so quantity never goes negative.
         $newQuantity = max(0, $medicine->quantity - $batch->quantity);
         $medicine->update(['quantity' => $newQuantity]);
-        $this->quantity = $newQuantity;
-
         $batch->delete();
+
+        $medicine->refresh()->syncExpiryFromBatches();
+        $this->quantity = $medicine->quantity;
+        $this->expiryDate = $medicine->expiry_date?->format('Y-m-d');
+
         session()->flash('success', 'Batch deleted.');
     }
 
@@ -420,11 +466,18 @@ class Index extends Component
             ? MedicineBatch::where('medicine_id', $this->editingId)->orderBy('expiry_date')->get()
             : collect();
 
+        // Which source (base stock or a specific batch id) will be sold
+        // from next, per FEFO — used to highlight it in the edit panel.
+        $nextFefoSource = $this->editingId
+            ? Medicine::find($this->editingId)?->fefoSources()->first()
+            : null;
+
         return view('livewire.medicines.index', [
             'medicines' => $medicines,
             'categories' => $categories,
             'lowStockThreshold' => $threshold,
             'editingMedicineBatches' => $editingMedicineBatches,
+            'nextFefoSource' => $nextFefoSource,
         ]);
     }
 }

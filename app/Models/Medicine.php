@@ -70,6 +70,108 @@ class Medicine extends Model
         return $this->expiry_date !== null && $this->expiry_date->isPast();
     }
 
+    /**
+     * FEFO (First-Expire-First-Out) stock breakdown for this medicine.
+     * Splits total quantity into its expiry-dated sources: any "base"
+     * stock that predates batch tracking (using the medicine's own
+     * expiry_date) plus every recorded batch (using its own expiry_date),
+     * sorted soonest-expiring first. This is what sales should consume
+     * from, and what the edit panel shows as "selling from next".
+     *
+     * @return \Illuminate\Support\Collection<int, array{type:string,id:?int,batch_number:?string,quantity:int,expiry_date:?\Carbon\Carbon}>
+     */
+    public function fefoSources(): \Illuminate\Support\Collection
+    {
+        $batches = $this->batches()->where('quantity', '>', 0)->orderBy('expiry_date')->get();
+        $baseQty = max(0, $this->quantity - $batches->sum('quantity'));
+
+        $sources = collect();
+
+        if ($baseQty > 0) {
+            $sources->push([
+                'type' => 'base',
+                'id' => null,
+                'batch_number' => null,
+                'quantity' => $baseQty,
+                'expiry_date' => $this->expiry_date,
+            ]);
+        }
+
+        foreach ($batches as $batch) {
+            $sources->push([
+                'type' => 'batch',
+                'id' => $batch->id,
+                'batch_number' => $batch->batch_number,
+                'quantity' => $batch->quantity,
+                'expiry_date' => $batch->expiry_date,
+            ]);
+        }
+
+        return $sources->sortBy(fn ($s) => $s['expiry_date']?->timestamp ?? PHP_INT_MAX)->values();
+    }
+
+    /**
+     * Deducts $units from stock in FEFO order: the soonest-expiring source
+     * (base stock or a specific batch) is drained first. Batch rows are
+     * shrunk or deleted as they're consumed; the medicine's own quantity
+     * total is decremented by the full amount either way. Call this from
+     * inside a locked DB transaction at sale time instead of a plain
+     * decrement('quantity', ...).
+     */
+    public function consumeFefo(int $units): void
+    {
+        if ($units <= 0) {
+            return;
+        }
+
+        $batches = $this->batches()->where('quantity', '>', 0)->orderBy('expiry_date')->lockForUpdate()->get();
+        $baseQty = max(0, $this->quantity - $batches->sum('quantity'));
+
+        $plan = collect();
+        if ($baseQty > 0) {
+            $plan->push(['type' => 'base', 'model' => null, 'expiry' => $this->expiry_date, 'qty' => $baseQty]);
+        }
+        foreach ($batches as $batch) {
+            $plan->push(['type' => 'batch', 'model' => $batch, 'expiry' => $batch->expiry_date, 'qty' => $batch->quantity]);
+        }
+        $plan = $plan->sortBy(fn ($p) => $p['expiry']?->timestamp ?? PHP_INT_MAX);
+
+        $remaining = $units;
+        foreach ($plan as $step) {
+            if ($remaining <= 0) {
+                break;
+            }
+            $take = min($remaining, $step['qty']);
+            if ($step['type'] === 'batch') {
+                $left = $step['qty'] - $take;
+                if ($left <= 0) {
+                    $step['model']->delete();
+                } else {
+                    $step['model']->update(['quantity' => $left]);
+                }
+            }
+            $remaining -= $take;
+        }
+
+        $this->decrement('quantity', $units);
+        $this->refresh()->syncExpiryFromBatches();
+    }
+
+    /**
+     * Keeps the medicine's own expiry_date column in sync with whichever
+     * source (a specific batch, or leftover "base" stock) is next up
+     * under FEFO — the earliest expiry across everything currently in
+     * stock. Called after any batch create/delete or quantity change so
+     * listings, expiry alerts, and the edit panel always reflect reality
+     * instead of a stale value someone typed once.
+     */
+    public function syncExpiryFromBatches(): void
+    {
+        $next = $this->fefoSources()->first();
+        $this->update(['expiry_date' => $next['expiry_date'] ?? null]);
+    }
+
+
     public function scopeLowStock($query)
     {
         $threshold = Setting::current()->low_stock_threshold;

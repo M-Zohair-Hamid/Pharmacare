@@ -141,18 +141,23 @@
         <div class="summary">
             @if ($sale->discount_amount > 0)
                 <div class="summary-row">
-                    <span>Subtotal</span>
-                    <span>{{ number_format($sale->total_amount + $sale->discount_amount, 2) }}</span>
+                    <span>Bill Total</span>
+                    <span>{{ number_format($sale->subtotal, 2) }}</span>
                 </div>
                 <div class="summary-row">
-                    <span>Discount ({{ number_format($sale->discount_percent, 0) }}%)</span>
-                    <span>-{{ number_format($sale->discount_amount, 2) }}</span>
+                    <span>Discount ({{ rtrim(rtrim(number_format($sale->discount_percent, 2), '0'), '.') }}%)</span>
+                    <span>&minus; {{ number_format($sale->discount_amount, 2) }}</span>
+                </div>
+                <div class="summary-row total">
+                    <span>YOUR BILL</span>
+                    <span>{{ number_format($sale->total_amount, 2) }}</span>
+                </div>
+            @else
+                <div class="summary-row total">
+                    <span>TOTAL</span>
+                    <span>{{ number_format($sale->total_amount, 2) }}</span>
                 </div>
             @endif
-            <div class="summary-row total">
-                <span>TOTAL</span>
-                <span>{{ number_format($sale->total_amount, 2) }}</span>
-            </div>
         </div>
 
         @if ($settings->refunds_enabled && $settings->refund_window_days && !$sale->is_refunded)

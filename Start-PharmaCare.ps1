@@ -7,6 +7,11 @@ Set-Location $ProjectRoot
 $port = 8000
 $url = "http://127.0.0.1:$port"
 
+# Apply any pending database migrations before starting the server, so
+# updates that add new columns/tables (like the discount feature) never
+# leave the app pointing at an out-of-date schema.
+Start-Process -FilePath "php" -ArgumentList "artisan","migrate","--force" -WindowStyle Hidden -Wait
+
 # Start php artisan serve completely hidden, no console window.
 Start-Process -FilePath "php" -ArgumentList "artisan","serve","--port=$port" -WindowStyle Hidden
 

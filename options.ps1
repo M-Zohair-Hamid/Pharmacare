@@ -1,6 +1,6 @@
-<#
+﻿<#
 .SYNOPSIS
-    PharmaCare Options — database maintenance menu (Reset / Backup / Restore).
+    PharmaCare Options - database maintenance menu (Reset / Backup / Restore).
     Launched from the "PharmaCare Options" desktop shortcut created by the
     installer, or can be run directly from inside the project folder.
 

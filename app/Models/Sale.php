@@ -17,9 +17,10 @@ class Sale extends Model
     protected $fillable = [
         'bill_code',
         'customer_name',
-        'total_amount',
+        'subtotal',
         'discount_percent',
         'discount_amount',
+        'total_amount',
         'payment_method',
         'notes',
         'refunded_at',
@@ -27,9 +28,10 @@ class Sale extends Model
     ];
 
     protected $casts = [
-        'total_amount' => 'decimal:2',
+        'subtotal' => 'decimal:2',
         'discount_percent' => 'decimal:2',
         'discount_amount' => 'decimal:2',
+        'total_amount' => 'decimal:2',
         'created_at' => 'datetime',
         'refunded_at' => 'datetime',
     ];

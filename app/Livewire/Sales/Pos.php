@@ -19,9 +19,10 @@ class Pos extends Component
     public string $paymentMethod = 'cash';
     public string $notes = '';
 
-    // Percentage discount applied to the cart subtotal. Hard-capped at 100
-    // both client-side (max attr) and server-side (updated()/checkout()).
-    public string $discountPercent = '0';
+    // Percentage discount entered at checkout, e.g. 5 for 5%. Kept as a
+    // string so the input can be blank while typing without Livewire
+    // coercion errors, and clamped to 0-100 whenever it's used.
+    public string $discountPercent = '';
 
     /** @var array<int, array{medicine_id:int, name:string, quantity:int, unit_type:string, unit_price:float, available:int}> */
     public array $cart = [];
@@ -131,32 +132,55 @@ class Pos extends Component
         unset($this->cart[$cartKey]);
     }
 
-    /**
-     * Clamp the discount to [0, 100] the moment the user types it, so it's
-     * never possible to even briefly hold an invalid value client-side.
-     */
-    public function updatedDiscountPercent(): void
-    {
-        $value = is_numeric($this->discountPercent) ? (float) $this->discountPercent : 0;
-        $value = max(0, min(100, $value));
-        $this->discountPercent = (string) $value;
-    }
-
-    public function getCartSubtotalProperty(): float
+    public function getCartTotalProperty(): float
     {
         return collect($this->cart)->sum(fn ($item) => $item['quantity'] * $item['unit_price']);
     }
 
-    public function getDiscountAmountProperty(): float
+    /**
+     * Clamps the raw discount input to a sane 0-100 percent, treating a
+     * blank/non-numeric field as 0% discount.
+     */
+    public function getDiscountPercentValueProperty(): float
     {
-        $percent = max(0, min(100, (float) ($this->discountPercent ?: 0)));
+        if ($this->discountPercent === '' || !is_numeric($this->discountPercent)) {
+            return 0.0;
+        }
 
-        return round($this->cartSubtotal * $percent / 100, 2);
+        return max(0.0, min(100.0, (float) $this->discountPercent));
     }
 
-    public function getCartTotalProperty(): float
+    public function getDiscountAmountProperty(): float
     {
-        return max(0, $this->cartSubtotal - $this->discountAmount);
+        return round($this->cartTotal * $this->discountPercentValue / 100, 2);
+    }
+
+    public function getNetTotalProperty(): float
+    {
+        return round($this->cartTotal - $this->discountAmount, 2);
+    }
+
+    /**
+     * Livewire hook fired whenever discountPercent changes (wire:model.live)
+     * so the field can't be typed into something silly like -10 or 500.
+     */
+    public function updatedDiscountPercent(): void
+    {
+        if ($this->discountPercent === '') {
+            return;
+        }
+
+        if (!is_numeric($this->discountPercent)) {
+            $this->discountPercent = '';
+            return;
+        }
+
+        $clamped = max(0.0, min(100.0, (float) $this->discountPercent));
+        // Only rewrite the field if clamping actually changed something,
+        // to avoid stomping on what the user is mid-typing (e.g. "10" -> "10.5").
+        if ((float) $this->discountPercent !== $clamped) {
+            $this->discountPercent = (string) $clamped;
+        }
     }
 
 
@@ -173,8 +197,9 @@ class Pos extends Component
             return;
         }
 
-        // Server-side clamp: never trust the client value alone.
-        $discountPercent = max(0, min(100, (float) ($this->discountPercent ?: 0)));
+        // Snapshot the discount now so it can't shift mid-transaction if
+        // something else touches the property.
+        $discountPercent = $this->discountPercentValue;
 
         try {
             $sale = DB::transaction(function () use ($discountPercent) {
@@ -206,17 +231,20 @@ class Pos extends Component
                         'subtotal' => $subtotal,
                     ];
 
-                    $medicine->decrement('quantity', $unitsNeeded);
+                    // FEFO: drain the soonest-expiring stock first (base stock
+                    // or a specific batch), not just the raw total.
+                    $medicine->consumeFefo($unitsNeeded);
                 }
 
                 $discountAmount = round($total * $discountPercent / 100, 2);
-                $finalTotal = max(0, $total - $discountAmount);
+                $netTotal = round($total - $discountAmount, 2);
 
                 $sale = Sale::create([
                     'customer_name' => trim($this->customerName) ?: null,
-                    'total_amount' => $finalTotal,
+                    'subtotal' => $total,
                     'discount_percent' => $discountPercent,
                     'discount_amount' => $discountAmount,
+                    'total_amount' => $netTotal,
                     'payment_method' => $this->paymentMethod,
                     'notes' => $this->notes ?: null,
                 ]);
@@ -231,7 +259,7 @@ class Pos extends Component
             $this->cart = [];
             $this->customerName = '';
             $this->notes = '';
-            $this->discountPercent = '0';
+            $this->discountPercent = '';
             $this->resetErrorBag('cart');
 
             $this->dispatch('sale-completed', saleId: $sale->id);
