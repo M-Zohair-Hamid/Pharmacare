@@ -71,6 +71,18 @@ class Medicine extends Model
     }
 
     /**
+     * Whether this medicine can be sold "by the box" in addition to per-unit.
+     * Only Tablets qualify, and only when a box size and box price are set —
+     * otherwise there's nothing to compute a box sale from.
+     */
+    public function getSellableAsBoxAttribute(): bool
+    {
+        return $this->medicine_type === 'Tablet'
+            && (int) $this->tablets_per_box > 0
+            && (float) $this->box_price > 0;
+    }
+
+    /**
      * FEFO (First-Expire-First-Out) stock breakdown for this medicine.
      * Splits total quantity into its expiry-dated sources: any "base"
      * stock that predates batch tracking (using the medicine's own

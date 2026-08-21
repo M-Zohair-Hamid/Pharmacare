@@ -15,6 +15,8 @@ class Pos extends Component
     use WithPagination;
 
     public string $search = '';
+    public string $category = '';
+    public string $type = '';
     public string $customerName = '';
     public string $paymentMethod = 'cash';
     public string $notes = '';
@@ -39,6 +41,18 @@ class Pos extends Component
         $this->perPage = 10;
     }
 
+    public function updatingCategory(): void
+    {
+        $this->resetPage();
+        $this->perPage = 10;
+    }
+
+    public function updatingType(): void
+    {
+        $this->resetPage();
+        $this->perPage = 10;
+    }
+
     public function loadMore(): void
     {
         $this->perPage += 10;
@@ -58,10 +72,7 @@ class Pos extends Component
             return;
         }
 
-        $sellableAsBox = $medicine->medicine_type === 'Tablet'
-            && $medicine->tablets_per_box
-            && $medicine->tablets_per_box > 0
-            && $medicine->box_price;
+        $sellableAsBox = $medicine->sellable_as_box;
 
         if ($saleUnit === 'box' && !$sellableAsBox) {
             $saleUnit = 'tablet';
@@ -104,11 +115,13 @@ class Pos extends Component
         $this->resetErrorBag('cart');
     }
 
-    public function updateQuantity(string $cartKey, int $quantity): void
+    public function updateQuantity(string $cartKey, int|string $quantity): void
     {
         if (!isset($this->cart[$cartKey])) {
             return;
         }
+
+        $quantity = (int) $quantity;
 
         if ($quantity <= 0) {
             unset($this->cart[$cartKey]);
@@ -125,6 +138,29 @@ class Pos extends Component
 
         $this->cart[$cartKey]['quantity'] = $quantity;
         $this->resetErrorBag('cart');
+    }
+
+    /**
+     * Switches a cart line between "tablet" and "box" for the same
+     * medicine, right from the cart (instead of the picker). Quantity
+     * resets to 1 on switch since a tablet count and a box count aren't
+     * a meaningful 1:1 conversion for the cashier — re-adds via
+     * addToCart() so all the usual stock/price logic still applies.
+     */
+    public function changeCartUnit(string $cartKey, string $newUnit): void
+    {
+        if (!isset($this->cart[$cartKey])) {
+            return;
+        }
+
+        $item = $this->cart[$cartKey];
+
+        if ($item['sale_unit'] === $newUnit) {
+            return;
+        }
+
+        unset($this->cart[$cartKey]);
+        $this->addToCart($item['medicine_id'], $newUnit);
     }
 
     public function removeFromCart(string $cartKey): void
@@ -278,6 +314,8 @@ class Pos extends Component
                         ->orWhereRaw('LOWER(generic_name) LIKE ?', [$term]);
                 });
             })
+            ->when($this->category !== '', fn ($q) => $q->where('category', $this->category))
+            ->when($this->type !== '', fn ($q) => $q->where('medicine_type', $this->type))
             ->where('quantity', '>', 0)
             ->where(function ($q) {
                 $q->whereNull('expiry_date')->orWhere('expiry_date', '>=', now());
@@ -285,8 +323,12 @@ class Pos extends Component
             ->orderBy('name')
             ->paginate($this->perPage);
 
+        $categories = Medicine::query()->distinct()->orderBy('category')->pluck('category');
+
         return view('livewire.sales.pos', [
             'medicines' => $medicines,
+            'categories' => $categories,
+            'medicineTypes' => Medicine::TYPES,
         ]);
     }
 }

@@ -21,6 +21,21 @@
             <input type="text" wire:model.live.debounce.300ms="search" placeholder="Search medicine by name or generic name..."
                 class="mb-4 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
 
+            <div class="mb-4 flex flex-col gap-3 sm:flex-row">
+                <select wire:model.live="category" class="cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="">All categories</option>
+                    @foreach ($categories as $cat)
+                        <option value="{{ $cat }}">{{ $cat }}</option>
+                    @endforeach
+                </select>
+                <select wire:model.live="type" class="cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="">All types</option>
+                    @foreach ($medicineTypes as $t)
+                        <option value="{{ $t }}">{{ $t }}</option>
+                    @endforeach
+                </select>
+            </div>
+
             <div class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-left text-sm">
@@ -101,7 +116,17 @@
                                     wire:change="updateQuantity('{{ $medicineId }}', $event.target.value)"
                                     class="w-20 rounded-lg border border-slate-200 px-2 py-1 text-sm"
                                 />
-                                <span class="text-sm text-slate-500">{{ $item['unit_type'] }}(s)</span>
+                                @if ($item['sellable_as_box'])
+                                    <select
+                                        wire:change="changeCartUnit('{{ $medicineId }}', $event.target.value)"
+                                        class="cursor-pointer rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                                    >
+                                        <option value="tablet" @selected($item['sale_unit'] === 'tablet')>Tablet(s)</option>
+                                        <option value="box" @selected($item['sale_unit'] === 'box')>Box(es)</option>
+                                    </select>
+                                @else
+                                    <span class="text-sm text-slate-500">{{ $item['unit_type'] }}(s)</span>
+                                @endif
                                 <span class="ml-auto text-sm font-medium text-slate-900">
                                     {{ number_format($item['quantity'] * $item['unit_price'], 2) }}
                                 </span>
