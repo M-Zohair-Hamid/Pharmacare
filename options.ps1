@@ -43,20 +43,110 @@ $dbPath = Join-Path $ProjectRoot "database\database.sqlite"
 $backupDir = Join-Path $ProjectRoot "database\backups"
 
 function Stop-PharmaCareServer {
-    # The launcher starts 'php artisan serve' hidden. Stop any running PHP
-    # dev server processes for this project before touching the database
-    # file, so nothing is reading/writing it mid-operation.
+    # 'php artisan serve' on Windows spawns a child php -S process that
+    # actually holds the socket - the parent's command line isn't reliable
+    # to match, and permissions/quoting can make the CIM filter miss it
+    # entirely. Kill whatever owns the port first; that's the real signal.
+    $killed = $false
+
+    try {
+        $conns = Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue
+        foreach ($c in $conns) {
+            try {
+                Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue
+                $killed = $true
+            } catch {}
+        }
+    } catch {
+        # Get-NetTCPConnection unavailable (older Windows) - fall through.
+    }
+
+    # Fallback / belt-and-suspenders: also sweep any php.exe whose command
+    # line mentions artisan serve, in case something is listening on a
+    # different port or the port check above found nothing.
     Get-CimInstance Win32_Process -Filter "Name = 'php.exe'" -ErrorAction SilentlyContinue |
         Where-Object { $_.CommandLine -like "*artisan*serve*" } |
         ForEach-Object {
-            try { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } catch {}
+            try {
+                Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+                $killed = $true
+            } catch {}
         }
+
+    return $killed
 }
 
 function Invoke-StopPharmaCare {
     Write-Step "Stop PharmaCare"
+    $wasRunning = Stop-PharmaCareServer
+    if ($wasRunning) {
+        Write-Ok "PharmaCare server stopped."
+    } else {
+        Write-Warn "No running PharmaCare server was found (nothing on port 8000)."
+    }
+}
+
+function Invoke-RefreshProject {
+    Write-Step "Refresh project (developers only)"
+    Write-Warn "This rebuilds dependencies, clears every cache, and rebuilds frontend assets."
+    $confirm = Read-Host "Type YES to continue"
+    if ($confirm -ne "YES") {
+        Write-Warn "Refresh cancelled."
+        return
+    }
+
     Stop-PharmaCareServer
-    Write-Ok "Any running PharmaCare server processes stopped."
+
+    try {
+        Write-Step "Installing/updating PHP dependencies (composer install)"
+        composer install --optimize-autoloader
+        if ($LASTEXITCODE -ne 0) { throw "composer install failed." }
+        Write-Ok "Composer dependencies up to date"
+
+        Write-Step "Regenerating autoloader (composer dump-autoload)"
+        composer dump-autoload --optimize
+        if ($LASTEXITCODE -ne 0) { throw "composer dump-autoload failed." }
+        Write-Ok "Autoloader regenerated"
+
+        Write-Step "Running migrations"
+        php artisan migrate --force
+        if ($LASTEXITCODE -ne 0) { throw "php artisan migrate failed." }
+        Write-Ok "Database up to date"
+
+        Write-Step "Clearing all Laravel caches (config, route, view, event, compiled)"
+        php artisan optimize:clear
+        if ($LASTEXITCODE -ne 0) { throw "php artisan optimize:clear failed." }
+        Write-Ok "All caches cleared"
+
+        Write-Step "Rebuilding config cache"
+        php artisan config:cache
+        if ($LASTEXITCODE -ne 0) { throw "php artisan config:cache failed." }
+        Write-Ok "Config cache rebuilt"
+
+        Write-Step "Rebuilding route cache"
+        php artisan route:cache
+        if ($LASTEXITCODE -ne 0) { throw "php artisan route:cache failed." }
+        Write-Ok "Route cache rebuilt"
+
+        Write-Step "Rebuilding view cache"
+        php artisan view:cache
+        if ($LASTEXITCODE -ne 0) { throw "php artisan view:cache failed." }
+        Write-Ok "View cache rebuilt"
+
+        Write-Step "Installing frontend dependencies (npm install)"
+        npm install
+        if ($LASTEXITCODE -ne 0) { throw "npm install failed." }
+        Write-Ok "Frontend dependencies up to date"
+
+        Write-Step "Building frontend assets (npm run build)"
+        npm run build
+        if ($LASTEXITCODE -ne 0) { throw "npm run build failed." }
+        Write-Ok "Frontend assets rebuilt"
+
+        Write-Ok "Project refresh complete."
+    } catch {
+        Write-Err "Refresh failed: $($_.Exception.Message)"
+    }
 }
 
 function Show-Menu {
@@ -70,7 +160,8 @@ function Show-Menu {
     Write-Host "  2) Backup database  (save a copy of the current database)"
     Write-Host "  3) Restore database (replace current database from a backup)"
     Write-Host "  4) Stop PharmaCare  (kill running server process)"
-    Write-Host "  5) Exit"
+    Write-Host "  5) Refresh project  (developers only: full rebuild + clear all caches)"
+    Write-Host "  6) Exit"
     Write-Host ""
 }
 
@@ -198,14 +289,15 @@ function Invoke-RestoreDatabase {
 $exit = $false
 while (-not $exit) {
     Show-Menu
-    $selection = Read-Host "Choose an option (1-5)"
+    $selection = Read-Host "Choose an option (1-6)"
     switch ($selection) {
         "1" { Invoke-ResetDatabase }
         "2" { Invoke-BackupDatabase }
         "3" { Invoke-RestoreDatabase }
         "4" { Invoke-StopPharmaCare }
-        "5" { $exit = $true }
-        default { Write-Warn "Please enter 1, 2, 3, 4, or 5." }
+        "5" { Invoke-RefreshProject }
+        "6" { $exit = $true }
+        default { Write-Warn "Please enter 1, 2, 3, 4, 5, or 6." }
     }
 }
 
