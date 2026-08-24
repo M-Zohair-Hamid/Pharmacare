@@ -139,6 +139,8 @@ function Invoke-RefreshProject {
         Write-Ok "Frontend dependencies up to date"
 
         Write-Step "Building frontend assets (npm run build)"
+        Write-Warn "If this fails with a 'Permission denied' error on public\build, close any"
+        Write-Warn "other terminal running 'npm run dev' first, then choose Refresh again."
         npm run build
         if ($LASTEXITCODE -ne 0) { throw "npm run build failed." }
         Write-Ok "Frontend assets rebuilt"
@@ -149,6 +151,47 @@ function Invoke-RefreshProject {
     }
 }
 
+function Invoke-LicenseStatus {
+    Write-Step "License status"
+
+    $licensePath = Join-Path $ProjectRoot "storage\license.lock"
+
+    if (-not (Test-Path $licensePath)) {
+        Write-Warn "Not activated. Run 'php artisan license:generate' or re-run the installer."
+        return
+    }
+
+    try {
+        $raw = Get-Content $licensePath -Raw | ConvertFrom-Json
+        Write-Ok "Activated on: $($raw.activated_at)"
+    } catch {
+        Write-Err "license.lock exists but could not be read. It may be corrupted."
+    }
+}
+
+function Invoke-FixBuildPermissions {
+    Write-Step "Fix build permissions (Windows Defender exclusion)"
+    Write-Warn "This adds a Windows Defender exclusion for the project folder, which fixes"
+    Write-Warn "'Access denied' / EPERM errors during 'npm run build' caused by real-time"
+    Write-Warn "scanning locking freshly-built files."
+    Write-Host ""
+
+    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    if (-not $isAdmin) {
+        Write-Err "This requires Administrator rights."
+        Write-Err "Close this window, right-click 'PharmaCare Options' -> Run as Administrator, then try again."
+        return
+    }
+
+    try {
+        Add-MpPreference -ExclusionPath $ProjectRoot -ErrorAction Stop
+        Write-Ok "Defender exclusion added for: $ProjectRoot"
+    } catch {
+        Write-Err "Could not add Defender exclusion: $($_.Exception.Message)"
+        Write-Warn "If this PC uses a different antivirus (not Windows Defender), add an exclusion"
+        Write-Warn "for this folder manually in that antivirus's settings instead."
+    }
+}
 function Show-Menu {
     Write-Host ""
     Write-Host "==================================================" -ForegroundColor Magenta
@@ -161,7 +204,9 @@ function Show-Menu {
     Write-Host "  3) Restore database (replace current database from a backup)"
     Write-Host "  4) Stop PharmaCare  (kill running server process)"
     Write-Host "  5) Refresh project  (developers only: full rebuild + clear all caches)"
-    Write-Host "  6) Exit"
+    Write-Host "  6) License status   (check activation for this device)"
+    Write-Host "  7) Fix build permissions (Defender exclusion, run as Admin)"
+    Write-Host "  8) Exit"
     Write-Host ""
 }
 
@@ -289,15 +334,17 @@ function Invoke-RestoreDatabase {
 $exit = $false
 while (-not $exit) {
     Show-Menu
-    $selection = Read-Host "Choose an option (1-6)"
+    $selection = Read-Host "Choose an option (1-8)"
     switch ($selection) {
         "1" { Invoke-ResetDatabase }
         "2" { Invoke-BackupDatabase }
         "3" { Invoke-RestoreDatabase }
         "4" { Invoke-StopPharmaCare }
         "5" { Invoke-RefreshProject }
-        "6" { $exit = $true }
-        default { Write-Warn "Please enter 1, 2, 3, 4, 5, or 6." }
+        "6" { Invoke-LicenseStatus }
+        "7" { Invoke-FixBuildPermissions }
+        "8" { $exit = $true }
+        default { Write-Warn "Please enter a number from 1 to 8." }
     }
 }
 

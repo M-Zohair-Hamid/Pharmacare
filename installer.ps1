@@ -371,6 +371,25 @@ if ($LASTEXITCODE -ne 0) { Write-Err "npm run build failed."; Read-Host "Press E
 Write-Ok "Frontend assets built"
 
 # ---------------------------------------------------------------
+# 6b. Activate this installation - bind license to this machine
+# ---------------------------------------------------------------
+
+Write-Step "Activating license for this device"
+$licenseLockPath = Join-Path $ProjectRoot "storage\license.lock"
+if (Test-Path $licenseLockPath) {
+    Write-Ok "This installation is already activated - leaving existing activation in place."
+    Write-Ok "(If you are re-installing on the SAME PC after a problem, this is expected.)"
+} else {
+    php artisan license:generate
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "License activation failed. Contact PharmaCare support before using the software."
+        Read-Host "Press Enter to exit"
+        exit 1
+    }
+    Write-Ok "License activated for this device."
+}
+
+# ---------------------------------------------------------------
 # 7. Create the silent launcher + desktop shortcut
 # ---------------------------------------------------------------
 

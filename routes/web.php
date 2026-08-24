@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\LicenseRecoveryController;
 use App\Http\Controllers\ReceiptController;
 use App\Livewire\Bin;
 use App\Livewire\Dashboard;
@@ -20,3 +21,6 @@ Route::get('/purchases', PurchasesIndex::class)->name('purchases.index');
 Route::get('/suppliers', SuppliersIndex::class)->name('suppliers.index');
 Route::get('/settings', Settings::class)->name('settings.index');
 Route::get('/bin', Bin::class)->name('bin.index');
+
+Route::get('/license-recovery', [LicenseRecoveryController::class, 'show']);
+Route::post('/license-recovery', [LicenseRecoveryController::class, 'attempt']);

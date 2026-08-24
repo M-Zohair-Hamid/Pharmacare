@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'license' => [
+        'master_hash' => env('LICENSE_MASTER_HASH'),
+    ],
+
 ];
