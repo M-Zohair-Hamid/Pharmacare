@@ -45,6 +45,7 @@
                                 <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Type</th>
                                 <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Unit Price</th>
                                 <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">In stock</th>
+                                <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Expiry</th>
                                 <th class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500"></th>
                             </tr>
                         </thead>
@@ -63,12 +64,26 @@
                                         <span class="text-xs text-slate-400">/ {{ $medicine->medicine_type }}</span>
                                     </td>
                                     <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->quantity }}</td>
+                                    <td class="px-4 py-3 align-middle text-slate-700">
+                                        {{ $medicine->expiry_date?->format('M j, Y') ?? '—' }}
+                                        @php $expiryStatus = $medicine->expiry_status; @endphp
+                                        @if ($expiryStatus)
+                                            <span @class([
+                                                'ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+                                                'bg-rose-50 text-rose-700' => $expiryStatus === 'expired',
+                                                'bg-amber-50 text-amber-700' => $expiryStatus === 'soon',
+                                                'bg-emerald-50 text-emerald-700' => $expiryStatus === 'ok',
+                                            ])>
+                                                {{ $expiryStatus === 'expired' ? 'Expired' : ($expiryStatus === 'soon' ? 'Soon' : 'OK') }}
+                                            </span>
+                                        @endif
+                                    </td>
                                     <td class="px-4 py-3 align-middle text-right">
                                         <button wire:click="addToCart({{ $medicine->id }})" class="cursor-pointer rounded-xl bg-teal-600 px-3 py-1.5 text-xs font-medium text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-teal-700 hover:shadow-md active:translate-y-0">Add</button>
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="5" class="px-4 py-12 text-center text-sm text-slate-500">No medicines in stock match your search.</td></tr>
+                                <tr><td colspan="6" class="px-4 py-12 text-center text-sm text-slate-500">No medicines in stock match your search.</td></tr>
                             @endforelse
                         </tbody>
                     </table>

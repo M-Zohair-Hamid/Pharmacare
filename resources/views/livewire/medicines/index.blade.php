@@ -100,7 +100,20 @@
                                 <span class="text-xs text-slate-400">/ {{ $medicine->medicine_type }}</span>
                             </td>
                             <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->quantity }}</td>
-                            <td class="px-4 py-3 align-middle text-slate-700">{{ $medicine->expiry_date?->format('M j, Y') ?? '—' }}</td>
+                            <td class="px-4 py-3 align-middle text-slate-700">
+                                {{ $medicine->expiry_date?->format('M j, Y') ?? '—' }}
+                                @php $expiryStatus = $medicine->expiry_status; @endphp
+                                @if ($expiryStatus)
+                                    <span @class([
+                                        'ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+                                        'bg-rose-50 text-rose-700' => $expiryStatus === 'expired',
+                                        'bg-amber-50 text-amber-700' => $expiryStatus === 'soon',
+                                        'bg-emerald-50 text-emerald-700' => $expiryStatus === 'ok',
+                                    ])>
+                                        {{ $expiryStatus === 'expired' ? 'Expired' : ($expiryStatus === 'soon' ? 'Expiring soon' : 'OK') }}
+                                    </span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3 align-middle text-slate-700">
                                 @php $status = $medicine->stock_status; @endphp
                                 <span @class([

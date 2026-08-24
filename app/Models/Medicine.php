@@ -71,6 +71,24 @@ class Medicine extends Model
     }
 
     /**
+     * 'expired' | 'soon' | 'ok' | null (no expiry set). Mirrors
+     * scopeExpiringSoon()'s 60-day window so listings and queries agree.
+     */
+    public function getExpiryStatusAttribute(): ?string
+    {
+        if ($this->expiry_date === null) {
+            return null;
+        }
+        if ($this->expiry_date->isPast()) {
+            return 'expired';
+        }
+        if ($this->expiry_date->lte(now()->addDays(60))) {
+            return 'soon';
+        }
+        return 'ok';
+    }
+
+    /**
      * Whether this medicine can be sold "by the box" in addition to per-unit.
      * Only Tablets qualify, and only when a box size and box price are set —
      * otherwise there's nothing to compute a box sale from.
